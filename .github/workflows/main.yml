@@ -1,1 +1,28 @@
-.github/workflows/install-d365-ce.yml
+name: Install D365 CE Applications
+
+on:
+  workflow_dispatch:
+
+jobs:
+  install-d365-apps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      - name: Authenticate to Power Platform
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          username: ${{ secrets.PP_USERNAME }}
+          password: ${{ secrets.PP_PASSWORD }}
+          tenant-id: ${{ secrets.PP_TENANT_ID }}
+
+      - name: Install Dynamics 365 Sales
+        uses: microsoft/powerplatform-actions/install-application@v1
+        with:
+          environment-url: ${{ secrets.PP_ENVIRONMENT_URL }}
+          application-name: "Dynamics 365 Sales"

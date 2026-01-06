@@ -1,0 +1,12 @@
+[
+  {
+    "ApplicationId": "9fdd3a15-77f1-4e3f-9477-e9e0e5aa1362",
+    "FriendlyName": "Field Service",
+    "UniqueName": "FieldService"
+  },
+  {
+    "ApplicationId": "f6c9b270-79e1-4bdf-9f2e-4f7d2c1f6c26",
+    "FriendlyName": "Sales",
+    "UniqueName": "Sales"
+  }
+]

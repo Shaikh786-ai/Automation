@@ -11,18 +11,21 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Power Platform Tools
-        uses: microsoft/powerplatform-actions/actions-install@v1
+      - name: Install Power Platform CLI
+        run: |
+          curl -sL https://aka.ms/install-pac-cli.sh | bash
 
       - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/authenticate@v1
-        with:
-          username: ${{ secrets.PP_USERNAME }}
-          password: ${{ secrets.PP_PASSWORD }}
-          tenant-id: ${{ secrets.PP_TENANT_ID }}
+        run: |
+          pac auth create \
+            --kind USERNAME_PASSWORD \
+            --username "${{ secrets.PP_USERNAME }}" \
+            --password "${{ secrets.PP_PASSWORD }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --environment "${{ secrets.PP_ENVIRONMENT_URL }}"
 
       - name: Install Dynamics 365 Sales
-        uses: microsoft/powerplatform-actions/install-application@v1
-        with:
-          environment-url: ${{ secrets.PP_ENVIRONMENT_URL }}
-          application-name: "Dynamics 365 Sales"
+        run: |
+          pac admin install \
+            --application-name "Dynamics365Sales" \
+            --environment "${{ secrets.PP_ENVIRONMENT_ID }}"

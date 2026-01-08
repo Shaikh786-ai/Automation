@@ -1,31 +1,44 @@
-name: Install D365 CE Applications
+name: Install CE Applications (Field Service & Sales)
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "applications.json"
 
 jobs:
-  install-d365-apps:
-    runs-on: ubuntu-latest
+  install-ce-apps:
+    runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install Power Platform CLI
-        run: |
-          curl -sL https://aka.ms/install-pac-cli.sh | bash
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
       - name: Authenticate to Power Platform
-        run: |
-          pac auth create \
-            --kind USERNAME_PASSWORD \
-            --username "${{ secrets.PP_USERNAME }}" \
-            --password "${{ secrets.PP_PASSWORD }}" \
-            --tenant "${{ secrets.PP_TENANT_ID }}" \
-            --environment "${{ secrets.PP_ENVIRONMENT_URL }}"
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          username: ${{ secrets.PP_USERNAME }}
+          password: ${{ secrets.PP_PASSWORD }}
+          tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-      - name: Install Dynamics 365 Sales
+      - name: Select Power Platform Environment
+        shell: pwsh
         run: |
-          pac admin install \
-            --application-name "Dynamics365Sales" \
-            --environment "${{ secrets.PP_ENVIRONMENT_ID }}"
+          pac org select --url "${{ secrets.PP_ENVIRONMENT_URL }}"
+
+      - name: Install CE Applications from applications.json
+        shell: pwsh
+        run: |
+          $apps = Get-Content "applications.json" | ConvertFrom-Json
+          $environmentUrl = "${{ secrets.PP_ENVIRONMENT_URL }}"
+
+          foreach ($app in $apps) {
+            Write-Host "Installing application: $($app.FriendlyName)"
+
+            pac admin assign-application `
+              --environment $environmentUrl `
+              --application-name $app.UniqueName
+          }

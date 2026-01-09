@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "applications.json"
+      - ".github/workflows/applications.json"
 
 jobs:
   install-ce-apps:
@@ -18,7 +18,7 @@ jobs:
         uses: microsoft/powerplatform-actions/actions-install@v1
 
       - name: Authenticate to Power Platform
-        uses: microsoft/powerplatform-actions/authenticate@v1
+        uses: microsoft/powerplatform-actions/actions-authenticate@v1
         with:
           username: ${{ secrets.PP_USERNAME }}
           password: ${{ secrets.PP_PASSWORD }}
@@ -32,7 +32,7 @@ jobs:
       - name: Install CE Applications from applications.json
         shell: pwsh
         run: |
-          $apps = Get-Content "applications.json" | ConvertFrom-Json
+          $apps = Get-Content ".github/workflows/applications.json" | ConvertFrom-Json
           $environmentUrl = "${{ secrets.PP_ENVIRONMENT_URL }}"
 
           foreach ($app in $apps) {

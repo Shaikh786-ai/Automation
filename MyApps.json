@@ -1,0 +1,12 @@
+[
+{
+    "ApplicationId": "b40ad077-54f0-44f5-9891-e9575daca12f",
+    "FriendlyName": "Dual-write Dynamics 365 Human Resources",
+    "UniqueName": "msdyn_Dynamics365HCMAnchor"
+  },
+{
+    "ApplicationId": "0cfd9958-798a-4bc9-88bf-af797ff30326",
+    "FriendlyName": "Dynamics 365 HR Common Tables",
+    "UniqueName": "HCMCommonAnchor"
+  },
+]

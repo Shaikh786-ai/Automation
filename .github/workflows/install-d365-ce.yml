@@ -32,7 +32,7 @@ jobs:
           environment-url: ${{ secrets.PP_ENVIRONMENT_URL }}
  
           # Auth via Service Principal (recommended)
-          app-id: ${{ secrets.PP_APP_ID }}
+          app-id: ${{ secrets.PP_CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
  

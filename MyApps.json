@@ -1,5 +1,10 @@
 [
 {
+    "ApplicationId": "008b5b74-f4f0-4eef-9ce3-bf38c3292e91",
+    "FriendlyName": "Dynamics 365 Finance and Operations Platform Tools",
+    "UniqueName": "msprov_fnouploadersolution"
+  },
+    {
     "ApplicationId": "b40ad077-54f0-44f5-9891-e9575daca12f",
     "FriendlyName": "Dual-write Dynamics 365 Human Resources",
     "UniqueName": "msdyn_Dynamics365HCMAnchor"
@@ -9,4 +14,5 @@
     "FriendlyName": "Dynamics 365 HR Common Tables",
     "UniqueName": "HCMCommonAnchor"
   },
+
 ]

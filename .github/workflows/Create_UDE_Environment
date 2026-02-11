@@ -1,0 +1,36 @@
+name: Create MY_Sample_UDE_Env Environment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write      # Required for OIDC
+  contents: read
+
+jobs:
+  create-ude:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Login to Azure using OIDC + federated credentials
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.PP_CLIENT_ID }}      # Install_CE_Pre-requisites App Registration
+          tenant-id: ${{ secrets.PP_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # Install Power Platform Admin module
+      - name: Install Power Platform Module
+        shell: pwsh
+        run: |
+          Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -AllowClobber
+
+      # Connect to Power Platform using Service Principal
+      - name: Connect to Power Platform
+        shell: pwsh
+        run: |
+          Add-PowerAppsAccount `

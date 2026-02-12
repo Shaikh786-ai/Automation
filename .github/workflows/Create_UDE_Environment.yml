@@ -22,7 +22,8 @@ jobs:
           client-id: ${{ secrets.PP_CLIENT_ID }}        # App Registration client ID
           tenant-id: ${{ secrets.PP_TENANT_ID }}
           allow-no-subscriptions: true
-          federated-token-name: github-automation-install-ce-applications
+          # This federated credential must match exactly the 'sub' claim from GitHub
+          federated-token-name: "repo:Shaikh786-ai/Automation:ref:refs/heads/My_Automation"
 
       # Install Power Platform PowerShell modules
       - name: Install Power Platform Modules

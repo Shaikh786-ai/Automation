@@ -23,7 +23,6 @@ jobs:
           tenant-id: ${{ secrets.PP_TENANT_ID }}
           allow-no-subscriptions: true
           # This federated credential must match exactly the 'sub' claim from GitHub
-          federated-token-name: "repo:Shaikh786-ai/Automation:ref:refs/heads/main"
 
       # Install Power Platform PowerShell modules
       - name: Install Power Platform Modules

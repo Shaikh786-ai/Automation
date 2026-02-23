@@ -33,15 +33,3 @@ jobs:
           currency: USD
           language: 1033
           domain-name: ude-dev01
-
-          # UDE bootstrap (FinOps provisioning anchor)
-          templates: D365_FinOps_Finance
-          template-metadata-json: |
-            {
-              "PostProvisioningPackages": [
-                {
-                  "applicationUniqueName": "msdyn_FinanceAndOperationsProvisioningAppAnchor",
-                  "parameters": "DevToolsEnabled=true|DemoDataEnabled=true"
-                }
-              ]
-            }

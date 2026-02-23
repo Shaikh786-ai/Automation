@@ -1,54 +1,40 @@
-name: Create UDE Environment
+name: Create UDE (OIDC, no secrets)
 
 on:
-  workflow_dispatch:   # Run manually from GitHub Actions tab
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
 
 jobs:
   create-ude:
-    runs-on: windows-latest
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Install Power Platform PowerShell module
-        shell: pwsh
-        run: |
-          Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -AllowClobber
+      # Install the official Power Platform actions (PAC CLI wrapper)
+      - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      - name: Create UDE Environment
-        shell: pwsh
-        env:
-          TENANT_ID: ${{ secrets.TENANT_ID }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-        run: |
-          Import-Module Microsoft.PowerApps.Administration.PowerShell
-
-          Add-PowerAppsAccount -Endpoint prod `
-            -TenantId $env:TENANT_ID `
-            -ApplicationId $env:CLIENT_ID `
-            -ClientSecret $env:CLIENT_SECRET | Out-Null
-
-          $json = @"
-          {
-            "PostProvisioningPackages": [
-              {
-                "applicationUniqueName": "msdyn_FinanceAndOperationsProvisioningAppAnchor",
-                "parameters": "DevToolsEnabled=true|DemoDataEnabled=true"
-              }
-            ]
-          }
-          "@ | ConvertFrom-Json
-
-          New-AdminPowerAppEnvironment `
-            -DisplayName "ude-dev01" `
-            -DomainName "ude-dev01" `
-            -LocationName "europe" `
-            -EnvironmentSku Sandbox `
-            -ProvisionDatabase `
-            -CurrencyName "USD" `
-            -LanguageName "en-US" `
-            -Templates "D365_FinOps_Finance" `
-            -TemplateMetadata $json `
-            -WaitUntilFinished $true
+      # Create environment via OIDC (no client secret needed)
+      - name: Create UDE environment
+        uses: microsoft/powerplatform-actions/create-environment@v1
+        with:
+          app-id:    ${{ secrets.PP_CLIENT_ID }}   # your Entra App (client) ID
+          tenant-id: ${{ secrets.PP_TENANT_ID }}   # your Entra tenant ID
+          environment-type: Sandbox
+          region: india                # change if needed
+          currency: USD
+          language: en-US
+          domain-name: ude-dev01
+          display-name: ude-dev01
+          templates: D365_FinOps_Finance
+          template-metadata-json: |
+            {
+              "PostProvisioningPackages": [
+                {
+                  "applicationUniqueName": "msdyn_FinanceAndOperationsProvisioningAppAnchor",
+                  "parameters": "DevToolsEnabled=true|DemoDataEnabled=true"
+                }
+              ]
+            }

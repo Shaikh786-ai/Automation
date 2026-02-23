@@ -31,7 +31,7 @@ jobs:
           environment-type: Sandbox
           region: india        # change if needed
           currency: USD
-          language: en-US
+          language: 1033
           domain-name: ude-dev01
 
           # UDE bootstrap (FinOps provisioning anchor)

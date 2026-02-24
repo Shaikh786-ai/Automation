@@ -1,30 +1,35 @@
-name: Update UDE Environment Name
+name: Update UDE Name (OIDC, no secrets)
 
 on:
   workflow_dispatch:
+    inputs:
+      environment_name:
+        description: "Current environment unique name (e.g., ude-dev01)"
+        required: true
+      new_name:
+        description: "New Display Name for the environment"
+        required: true
 
 permissions:
-  id-token: write   # required for GitHub OIDC
+  id-token: write
   contents: read
 
 jobs:
   update-ude:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions
+      # Install PAC CLI
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Update environment using federated credentials (no client secret)
-      - name: Update UDE environment name
+      # Update environment
+      - name: Update UDE environment display name
         uses: microsoft/powerplatform-actions/update-environment@v1
         with:
           app-id:    ${{ secrets.PP_CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # REQUIRED: Current environment name or ID
-          environment: ude-dev01
-
-          # REQUIRED: New display name
-          name: ude-dev01-renamed
+          # Environment to modify
+          environment-name: ${{ github

@@ -4,14 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: "Current environment unique name (e.g., ude-dev01)"
+        description: "ude-dev01" #Current environment unique name or ID (e.g., ude-dev01 or GUID)
         required: true
-      new_name:
-        description: "New Display Name for the environment"
+      new_display_name:
+        description: "ude-dev01-renamed" #New Display Name for the environment (what users see)
         required: true
 
 permissions:
-  id-token: write
+  id-token: write   # Required for GitHub OIDC to Azure AD
   contents: read
 
 jobs:
@@ -19,17 +19,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Install PAC CLI
-      - uses: microsoft/powerplatform-actions/actions-install@v1
+      # Install PAC CLI wrapper actions
+      - name: Install Power Platform Actions
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Update environment
+      # Update environment display name using federated credentials (no client secret)
       - name: Update UDE environment display name
         uses: microsoft/powerplatform-actions/update-environment@v1
         with:
+          # OIDC (federated credentials): no client secret needed
           app-id:    ${{ secrets.PP_CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # Environment to modify
-          environment-name: ${{ github
+          # Target environment to modify (unique name or environment ID)
+          environment-name: ${{ github.event.inputs.environment_name }}
+
+          # New display name
+          display-name: ${{ github.event.inputs.new_display_name }}
+
+      # Optional: Verify the change by listing environments and grepping the result
+      - name: Verify update (list environments)
+        shell: bash
+        run: |
+          pac auth clear
+          pac auth create --tenant ${{ secrets.PP_TENANT_ID }} --applicationId ${{ secrets.PP_CLIENT_ID }} --deviceCode
+          echo "Listing environments to verify..."
+          pac env list

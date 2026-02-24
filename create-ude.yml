@@ -1,7 +1,7 @@
 name: Create UDE (OIDC, no secrets)
  
 on:
-workflow_dispatch:
+  workflow_dispatch:
  
 permissions:
 id-token: write   # required for GitHub OIDC

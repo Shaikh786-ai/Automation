@@ -1,4 +1,4 @@
-name: Rename UDE Name (OIDC, no secrets)
+name: Update UDE Name (OIDC, no secrets)
 
 on:
   workflow_dispatch:

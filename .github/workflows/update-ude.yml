@@ -1,50 +1,47 @@
-name: Update UDE Name (OIDC, no secrets)
+name: Rename UDE Name (client secret)
 
 on:
   workflow_dispatch:
     inputs:
-      environment_name:
-        description: "ude-dev01" #Current environment unique name or ID (e.g., ude-dev01 or GUID)
+      environment_id:
+        description: "Environment ID or unique name"
         required: true
       new_display_name:
-        description: "ude-dev01-renamed" #New Display Name for the environment (what users see)
+        description: "New display name"
         required: true
 
 permissions:
-  id-token: write   # Required for GitHub OIDC to Azure AD
   contents: read
 
 jobs:
-  update-ude:
-    runs-on: ubuntu-latest
-
+  rename-env:
+    runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions
-      - name: Install Power Platform Actions
-        uses: microsoft/powerplatform-actions/actions-install@v1
-
-      # Update environment display name using federated credentials (no client secret)
-      - name: Update UDE environment display name
-        uses: microsoft/powerplatform-actions/update-environment@v1
-        with:
-          # OIDC (federated credentials): no client secret needed
-          app-id:    ${{ secrets.PP_CLIENT_ID }}
-          tenant-id: ${{ secrets.PP_TENANT_ID }}
-
-          # Target environment to modify (unique name or environment ID)
-          environment-name: ${{ github.event.inputs.environment_name }}
-
-          # New display name
-          display-name: ${{ github.event.inputs.new_display_name }}
-
-      # Optional: Verify the change by listing environments and grepping the result
-      - name: Verify update (list environments)
-        shell: bash
+      - name: Install Power Apps Admin modules
+        shell: pwsh
         run: |
-          pac auth clear
-          pac auth create --tenant ${{ secrets.PP_TENANT_ID }} --applicationId ${{ secrets.PP_CLIENT_ID }} --deviceCode
-          echo "Listing environments to verify..."
-          pac env list
+          Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -Scope CurrentUser
+          Install-Module Microsoft.PowerApps.PowerShell -Force -Scope CurrentUser
+
+      - name: Connect (service principal + client secret)
+        shell: pwsh
+        run: |
+          Add-PowerAppsAccount `
+            -Endpoint prod `
+            -TenantID    "${{ secrets.PP_TENANT_ID }}" `
+            -ApplicationId "${{ secrets.PP_CLIENT_ID }}" `
+            -ClientSecret  "${{ secrets.PP_CLIENT_SECRET }}" `
+            -Verbose
+        # Supported sign-in patterns are username/password or service principal with secret or certificate (no OIDC). [6](https://learn.microsoft.com/en-us/powershell/powerapps/get-started-powerapps-admin?view=pa-ps-latest)
+
+      - name: Rename environment
+        shell: pwsh
+        run: |
+          Set-AdminPowerAppEnvironmentDisplayName `
+            -EnvironmentName "${{ github.event.inputs.environment_id }}" `
+            -NewDisplayName "${{ github.event.inputs.new_display_name }}" `
+            -Verbose
+        # Renames the environment display name. [3](https://learn.microsoft.com/en-us/powershell/module/microsoft.powerapps.administration.powershell/set-adminpowerappenvironmentdisplayname?view=pa-ps-latest)

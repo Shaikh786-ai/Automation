@@ -26,7 +26,7 @@ jobs:
 
           # Use the Environment ID (GUID) here
           # 8d996ece-8558-4c4e-b459-a51b3beafdb4
-          environment-name: 3f935b63-fa15-edcd-8e6c-17f25bd274d1
+          environment-id: 3f935b63-fa15-edcd-8e6c-17f25bd274d1
 
           # Optional flags (uncomment if you want to enforce non-interactive deletes and wait)
           # force: true

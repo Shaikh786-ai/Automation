@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 jobs:
-  rename-env:
+  rename-ude:
     runs-on: windows-latest
     steps:
       - name: Checkout

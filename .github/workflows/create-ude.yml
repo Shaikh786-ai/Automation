@@ -25,7 +25,7 @@ jobs:
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
           # REQUIRED display name for the new environment
-          name: ude-dev01
+          name: ude-dev02
 
           # Environment configuration
           environment-type: Sandbox

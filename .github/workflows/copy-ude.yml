@@ -1,4 +1,4 @@
-name: Copy UDE (OIDC, no secrets)
+name: Copy Data Between Existing Environments (OIDC, no secrets)
 
 on:
   workflow_dispatch:
@@ -6,65 +6,46 @@ on:
       SOURCE_ENV_ID:
         description: "Source environment ID (GUID)"
         required: true
-      NEW_ENV_NAME:
-        description: "New environment display name (friendly name)"
+      TARGET_ENV_ID:
+        description: "Target environment ID (GUID)"
         required: true
-      TARGET_ENV_TYPE:
-        description: "Target type: FullCopy or MinimalCopy"
-        required: true
-        default: "FullCopy"
-      REGION:
-        description: "Region for the new environment (e.g., india, unitedstates)"
-        required: true
-        default: "india"
-      # Optional: set if you want Sandbox vs Production (defaults to source's type if omitted on server side)
-      ENVIRONMENT_TYPE:
-        description: "New environment type: Sandbox or Production"
-        required: false
-        default: "Sandbox"
       WAIT_MINUTES:
         description: "Max async wait time (minutes)"
         required: true
         default: "240"
 
 permissions:
-  id-token: write    # required for GitHub OIDC
+  id-token: write      # Required for OIDC
   contents: read
 
 jobs:
-  copy-ude:
+  copy-db:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions (includes pac on runner)
+      # Install PAC CLI
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Copy environment using federated credentials (OIDC)
-      - name: Copy environment
-        id: copy
-        uses: microsoft/powerplatform-actions/copy-environment@v1
+      # Authenticate using OIDC with App Registration
+      - name: Authenticate (OIDC)
+        uses: microsoft/powerplatform-actions/who-am-i@v1
         with:
-          # OIDC: only app-id + tenant-id required when federated credentials are configured on the app
           app-id:    ${{ secrets.PP_CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # Identify the source environment by ID (GUID)
-          source-environment-id: ${{ github.event.inputs.SOURCE_ENV_ID }}
-
-          # Target environment details
-          name:              ${{ github.event.inputs.NEW_ENV_NAME }}
-          region:            ${{ github.event.inputs.REGION }}
-          environment-type:  ${{ github.event.inputs.ENVIRONMENT_TYPE }}
-
-          # Copy mode: FullCopy (with data) or MinimalCopy (customizations only)
-          type: ${{ github.event.inputs.TARGET_ENV_TYPE }}
-
-          # Make the job wait for completion (recommended for automation)
-          wait-for-completion: true
-          max-async-wait-time: ${{ github.event.inputs.WAIT_MINUTES }}
-
-      - name: Output new environment details
+      # Use PAC CLI directly to copy DB from existing source -> existing target
+      - name: Copy Dataverse Database (source -> target)
         run: |
-          echo "New Environment ID:  ${{ steps.copy.outputs.environment-id }}"
-          echo "New Environment URL: ${{ steps.copy.outputs.environment-url }}"
+          echo "Copying DB from ${{ github.event.inputs.SOURCE_ENV_ID }} to ${{ github.event.inputs.TARGET_ENV_ID }}"
+
+          pac admin copy-database \
+            --source-env  "${{ github.event.inputs.SOURCE_ENV_ID }}" \
+            --target-env  "${{ github.event.inputs.TARGET_ENV_ID }}" \
+            --async false \
+            --max-async-wait-time "${{ github.event.inputs.WAIT_MINUTES }}"
+          
+          echo "Database copy job submitted."
+
+      - name: Done
+        run: echo "Copy completed (or running async)."

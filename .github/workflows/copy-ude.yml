@@ -1,4 +1,4 @@
-name: Copy Data
+name: Copy Dataverse DB (Existing → Existing) — OIDC, no secrets
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ on:
         default: "240"
 
 permissions:
-  id-token: write      # Required for OIDC
+  id-token: write   # required for GitHub OIDC
   contents: read
 
 jobs:
@@ -24,28 +24,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI
+      # Install PAC CLI on the runner
       - uses: microsoft/powerplatform-actions/actions-install@v1
+      # The official repo provides this installer and documents supported actions. [2](https://learn.microsoft.com/en-us/powershell/module/microsoft.powerapps.administration.powershell/?view=pa-ps-latest)
 
-      # Authenticate using OIDC with App Registration
-      - name: Authenticate (OIDC)
-        uses: microsoft/powerplatform-actions/who-am-i@v1
-        with:
-          app-id:    ${{ secrets.PP_CLIENT_ID }}
-          tenant-id: ${{ secrets.PP_TENANT_ID }}
-
-      # Use PAC CLI directly to copy DB from existing source -> existing target
-      - name: Copy Dataverse Database (source -> target)
+      # Authenticate in ADMIN context using GitHub Federation (OIDC)
+      - name: PAC auth (OIDC, admin context)
         run: |
-          echo "Copying DB from ${{ github.event.inputs.SOURCE_ENV_ID }} to ${{ github.event.inputs.TARGET_ENV_ID }}"
+          pac auth clear
+          pac auth create \
+            --tenant        "${{ secrets.PP_TENANT_ID }}" \
+            --applicationId "${{ secrets.PP_CLIENT_ID }}" \
+            --githubFederated
+        # Authenticate once, tenant-wide, no environment argument needed for admin ops. 
+        # Admin operations are executed via 'pac admin ...' commands. [1](https://alyaconsulting.ch/Solutions/Microsoft.PowerApps.Administration.PowerShell/Add-PowerAppsAccount)
 
+      # Copy the Dataverse database from source -> target
+      - name: Copy Dataverse database (source → target)
+        run: |
           pac admin copy-database \
-            --source-env  "${{ github.event.inputs.SOURCE_ENV_ID }}" \
-            --target-env  "${{ github.event.inputs.TARGET_ENV_ID }}" \
+            --source-env "${{ github.event.inputs.SOURCE_ENV_ID }}" \
+            --target-env "${{ github.event.inputs.TARGET_ENV_ID }}" \
             --async false \
             --max-async-wait-time "${{ github.event.inputs.WAIT_MINUTES }}"
-          
-          echo "Database copy job submitted."
+        # 'copy-database' is part of the 'pac admin' command set for environment admin tasks. [1](https://alyaconsulting.ch/Solutions/Microsoft.PowerApps.Administration.PowerShell/Add-PowerAppsAccount)
 
       - name: Done
-        run: echo "Copy completed (or running async)."
+        run: echo "Database copy submitted/completed."

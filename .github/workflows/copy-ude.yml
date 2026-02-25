@@ -1,4 +1,4 @@
-name: Copy Data Between Existing Environments (OIDC, no secrets)
+name: Copy Data
 
 on:
   workflow_dispatch:

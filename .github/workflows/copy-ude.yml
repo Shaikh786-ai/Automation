@@ -9,48 +9,57 @@ on:
       TARGET_ENV_ID:
         description: "Target environment ID (GUID)"
         required: true
+      COPY_TYPE:
+        description: "Copy type: FullCopy (with data) or MinimalCopy (schema only)"
+        required: true
+        default: "FullCopy"
       WAIT_MINUTES:
         description: "Max async wait time (minutes)"
         required: true
         default: "240"
 
 permissions:
-  id-token: write
+  id-token: write   # required for GitHub OIDC
   contents: read
 
 jobs:
   copy-db:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI
+      # Install PAC CLI on the runner
       - name: Install Power Platform CLI
-        run: |
-          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Correct verification step
-      - name: Verify PAC CLI
-        run: pac version
-
-      # Authenticate using GitHub OIDC (Microsoft Entra ID)
+      # Authenticate in ADMIN context using GitHub Federation (OIDC)
       - name: PAC auth (OIDC, admin context)
+        shell: bash
         run: |
-          pac auth clear
+          set -euo pipefail
+          pac auth clear || true
           pac auth create \
-            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --tenant        "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.PP_CLIENT_ID }}" \
             --githubFederated
+          pac auth who
 
-      # Copy database
+      # Copy the Dataverse database from source → target
       - name: Copy Dataverse database (source → target)
+        shell: bash
         run: |
-          pac admin copy-database \
+          set -euo pipefail
+          # Validate COPY_TYPE
+          case "${{ github.event.inputs.COPY_TYPE }}" in
+            FullCopy|MinimalCopy) ;; 
+            *) echo "Invalid COPY_TYPE. Use 'FullCopy' or 'MinimalCopy'." && exit 2 ;;
+          esac
+
+          pac admin copy \
             --source-env "${{ github.event.inputs.SOURCE_ENV_ID }}" \
             --target-env "${{ github.event.inputs.TARGET_ENV_ID }}" \
-            --async false \
+            --type       "${{ github.event.inputs.COPY_TYPE }}" \
+            --async      false \
             --max-async-wait-time "${{ github.event.inputs.WAIT_MINUTES }}"
 
       - name: Done

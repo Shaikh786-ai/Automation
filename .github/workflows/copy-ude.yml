@@ -10,7 +10,7 @@ on:
         description: "Target environment ID (GUID)"
         required: true
       COPY_TYPE:
-        description: "Copy type: FullCopy (with data) or MinimalCopy (schema only)"
+        description: "FullCopy (with data) or MinimalCopy (schema only)"
         required: true
         default: "FullCopy"
       WAIT_MINUTES:
@@ -19,7 +19,7 @@ on:
         default: "240"
 
 permissions:
-  id-token: write   # required for GitHub OIDC
+  id-token: write
   contents: read
 
 jobs:
@@ -28,11 +28,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI on the runner
+      # 1) Install PAC CLI using the official action
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Authenticate in ADMIN context using GitHub Federation (OIDC)
+      # 2) Verify PAC is on PATH; fallback to .NET global tool if needed
+      - name: Verify PAC presence (and fallback install)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "PATH before: $PATH"
+          if ! command -v pac >/dev/null 2>&1; then
+            echo "PAC not found after actions-install. Installing via dotnet global tool..."
+            dotnet tool install -g Microsoft.PowerApps.CLI.Tool
+            echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          fi
+          echo "PATH after: $PATH"
+          pac --version || (echo "PAC still not available" && exit 127)
+
+      # 3) Authenticate using OIDC (no secrets beyond IDs)
       - name: PAC auth (OIDC, admin context)
         shell: bash
         run: |
@@ -44,14 +58,13 @@ jobs:
             --githubFederated
           pac auth who
 
-      # Copy the Dataverse database from source → target
+      # 4) Copy from source → target (uses correct subcommand: 'copy')
       - name: Copy Dataverse database (source → target)
         shell: bash
         run: |
           set -euo pipefail
-          # Validate COPY_TYPE
           case "${{ github.event.inputs.COPY_TYPE }}" in
-            FullCopy|MinimalCopy) ;; 
+            FullCopy|MinimalCopy) ;;
             *) echo "Invalid COPY_TYPE. Use 'FullCopy' or 'MinimalCopy'." && exit 2 ;;
           esac
 

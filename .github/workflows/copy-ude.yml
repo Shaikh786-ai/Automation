@@ -70,6 +70,7 @@ jobs:
           esac
 
           pac admin copy \
+            --name "DataverseCopyJob" \
             --source-env "${{ github.event.inputs.SOURCE_ENV_ID }}" \
             --target-env "${{ github.event.inputs.TARGET_ENV_ID }}" \
             --type       "${{ github.event.inputs.COPY_TYPE }}" \

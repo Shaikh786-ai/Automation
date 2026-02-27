@@ -1,4 +1,4 @@
-name: Rename Environment Display Name (PowerShell)
+name: Rename Environment Display Name
 
 on:
   workflow_dispatch:
@@ -7,29 +7,28 @@ on:
         description: "Environment ID (GUID)"
         required: true
       NEW_DISPLAY_NAME:
-        description: "New friendly/display name for the environment"
+        description: "New friendly name"
         required: true
 
 permissions:
   contents: read
 
 jobs:
-  rename-display-name:
+  rename-env:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout (optional)
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Power Apps Admin PowerShell module
+      - name: Install Power Platform Admin Module
         shell: pwsh
         run: |
           Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
           Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -AllowClobber
           Import-Module  Microsoft.PowerApps.Administration.PowerShell -Force
 
-      # Authenticate with Service Principal (Admin module does NOT support GitHub OIDC)
-      - name: Connect (Service Principal)
+      - name: Login using Service Principal (Admin PowerShell)
         shell: pwsh
         run: |
           $tenantId = "${{ secrets.PP_TENANT_ID }}"
@@ -37,29 +36,25 @@ jobs:
           $secret   = "${{ secrets.PP_CLIENT_SECRET }}" | ConvertTo-SecureString -AsPlainText -Force
           $cred     = New-Object System.Management.Automation.PSCredential ($appId, $secret)
 
-          # Connect to Admin endpoint with SPN
-          Connect-AdminPowerAppEnvironment -TenantId $tenantId -Credential $cred
+          # Official SPN login
+          Add-PowerAppsAccount -TenantId $tenantId -ApplicationId $appId -ClientSecret $secret
 
-          # Optional: show current user to validate connection
-          Write-Host "Connected. SPN: $appId Tenant: $tenantId"
-
-      - name: Rename environment display name
+      - name: Rename Environment
         shell: pwsh
         run: |
           $envId   = "${{ github.event.inputs.ENVIRONMENT_ID }}"
           $newName = "${{ github.event.inputs.NEW_DISPLAY_NAME }}"
 
-          # Perform the rename
+          # Microsoft-official cmdlet to rename display name
           Set-AdminPowerAppEnvironmentDisplayName `
             -EnvironmentName $envId `
             -NewDisplayName  $newName
 
-          Write-Host "Requested rename of environment $envId to '$newName'."
+          Write-Host "Display name updated successfully."
 
-      - name: Verify (list envs & filter)
+      - name: Verify Rename
         shell: pwsh
         run: |
-          # Simple verification that shows current DisplayName for the target env
           $envId   = "${{ github.event.inputs.ENVIRONMENT_ID }}"
-          $envInfo = Get-AdminPowerAppEnvironment -EnvironmentName $envId
-          $envInfo | Select-Object DisplayName, EnvironmentName, Location, EnvironmentType | Format-List
+          $info = Get-AdminPowerAppEnvironment -EnvironmentName $envId
+          $info | Select-Object DisplayName, EnvironmentName, Location, EnvironmentSku | Format-List

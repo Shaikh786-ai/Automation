@@ -1,47 +1,65 @@
-name: Rename UDE Name (client secret)
+name: Rename Environment Display Name (PowerShell)
 
 on:
   workflow_dispatch:
     inputs:
-      environment_id:
-        description: "Environment ID or unique name"
+      ENVIRONMENT_ID:
+        description: "Environment ID (GUID)"
         required: true
-      new_display_name:
-        description: "New display name"
+      NEW_DISPLAY_NAME:
+        description: "New friendly/display name for the environment"
         required: true
 
 permissions:
   contents: read
 
 jobs:
-  rename-ude:
+  rename-display-name:
     runs-on: windows-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout (optional)
         uses: actions/checkout@v4
 
-      - name: Install Power Apps Admin modules
+      - name: Install Power Apps Admin PowerShell module
         shell: pwsh
         run: |
-          Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -Scope CurrentUser
-          Install-Module Microsoft.PowerApps.PowerShell -Force -Scope CurrentUser
+          Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
+          Install-Module Microsoft.PowerApps.Administration.PowerShell -Force -AllowClobber
+          Import-Module  Microsoft.PowerApps.Administration.PowerShell -Force
 
-      - name: Connect (service principal + client secret)
+      # Authenticate with Service Principal (Admin module does NOT support GitHub OIDC)
+      - name: Connect (Service Principal)
         shell: pwsh
         run: |
-          Add-PowerAppsAccount `
-            -Endpoint prod `
-            -TenantID    "${{ secrets.PP_TENANT_ID }}" `
-            -ApplicationId "${{ secrets.PP_CLIENT_ID }}" `
-            -ClientSecret  "${{ secrets.PP_CLIENT_SECRET }}" `
-            -Verbose
-        # Supported sign-in patterns are username/password or service principal with secret or certificate (no OIDC). [6](https://learn.microsoft.com/en-us/powershell/powerapps/get-started-powerapps-admin?view=pa-ps-latest)
+          $tenantId = "${{ secrets.PP_TENANT_ID }}"
+          $appId    = "${{ secrets.PP_CLIENT_ID }}"
+          $secret   = "${{ secrets.PP_CLIENT_SECRET }}" | ConvertTo-SecureString -AsPlainText -Force
+          $cred     = New-Object System.Management.Automation.PSCredential ($appId, $secret)
 
-      - name: Rename environment
+          # Connect to Admin endpoint with SPN
+          Connect-AdminPowerAppEnvironment -TenantId $tenantId -Credential $cred
+
+          # Optional: show current user to validate connection
+          Write-Host "Connected. SPN: $appId Tenant: $tenantId"
+
+      - name: Rename environment display name
         shell: pwsh
         run: |
+          $envId   = "${{ github.event.inputs.ENVIRONMENT_ID }}"
+          $newName = "${{ github.event.inputs.NEW_DISPLAY_NAME }}"
+
+          # Perform the rename
           Set-AdminPowerAppEnvironmentDisplayName `
-            -EnvironmentName "${{ github.event.inputs.environment_id }}" `
-            -NewDisplayName "${{ github.event.inputs.new_display_name }}" `
-            -Verbose
-        # Renames the environment display name. [3](https://learn.microsoft.com/en-us/powershell/module/microsoft.powerapps.administration.powershell/set-adminpowerappenvironmentdisplayname?view=pa-ps-latest)
+            -EnvironmentName $envId `
+            -NewDisplayName  $newName
+
+          Write-Host "Requested rename of environment $envId to '$newName'."
+
+      - name: Verify (list envs & filter)
+        shell: pwsh
+        run: |
+          # Simple verification that shows current DisplayName for the target env
+          $envId   = "${{ github.event.inputs.ENVIRONMENT_ID }}"
+          $envInfo = Get-AdminPowerAppEnvironment -EnvironmentName $envId
+          $envInfo | Select-Object DisplayName, EnvironmentName, Location, EnvironmentType | Format-List

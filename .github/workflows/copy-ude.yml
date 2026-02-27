@@ -28,11 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 1) Install PAC CLI using the official action
+      # Recommended by Microsoft to provision PAC on a runner
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # 2) Verify PAC is on PATH; fallback to .NET global tool if needed
+      # Verify PAC availability; if missing, install via .NET global tool and export path.
       - name: Verify PAC presence (and fallback install)
         shell: bash
         run: |
@@ -44,9 +44,10 @@ jobs:
             echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           fi
           echo "PATH after: $PATH"
-          pac --version || (echo "PAC still not available" && exit 127)
+          # Use 'pac help' (not '--version') to avoid parser differences
+          pac help >/dev/null
 
-      # 3) Authenticate using OIDC (no secrets beyond IDs)
+      # Authenticate using OIDC (no client secrets)
       - name: PAC auth (OIDC, admin context)
         shell: bash
         run: |
@@ -58,7 +59,7 @@ jobs:
             --githubFederated
           pac auth who
 
-      # 4) Copy from source → target (uses correct subcommand: 'copy')
+      # Copy from source → target; correct subcommand is 'pac admin copy'
       - name: Copy Dataverse database (source → target)
         shell: bash
         run: |

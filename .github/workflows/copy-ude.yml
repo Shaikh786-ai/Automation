@@ -21,23 +21,30 @@ permissions:
 jobs:
   copy-db:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI on the runner
-      - uses: microsoft/powerplatform-actions/actions-install@v1
-      # The official repo provides this installer and documents supported actions. [2](https://learn.microsoft.com/en-us/powershell/module/microsoft.powerapps.administration.powershell/?view=pa-ps-latest)
+      # Install Power Platform CLI (PAC) - reliable method
+      - name: Install Power Platform CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # (Optional but recommended) Verify PAC installation
+      - name: Verify PAC CLI
+        run: |
+          which pac
+          pac --version
 
       # Authenticate in ADMIN context using GitHub Federation (OIDC)
       - name: PAC auth (OIDC, admin context)
         run: |
           pac auth clear
           pac auth create \
-            --tenant        "${{ secrets.PP_TENANT_ID }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.PP_CLIENT_ID }}" \
             --githubFederated
-        # Authenticate once, tenant-wide, no environment argument needed for admin ops. 
-        # Admin operations are executed via 'pac admin ...' commands. [1](https://alyaconsulting.ch/Solutions/Microsoft.PowerApps.Administration.PowerShell/Add-PowerAppsAccount)
 
       # Copy the Dataverse database from source -> target
       - name: Copy Dataverse database (source → target)
@@ -47,7 +54,6 @@ jobs:
             --target-env "${{ github.event.inputs.TARGET_ENV_ID }}" \
             --async false \
             --max-async-wait-time "${{ github.event.inputs.WAIT_MINUTES }}"
-        # 'copy-database' is part of the 'pac admin' command set for environment admin tasks. [1](https://alyaconsulting.ch/Solutions/Microsoft.PowerApps.Administration.PowerShell/Add-PowerAppsAccount)
 
       - name: Done
         run: echo "Database copy submitted/completed."

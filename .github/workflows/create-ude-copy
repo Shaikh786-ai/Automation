@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      ENV_NAME: "ude-dev02"
+      ENV_NAME: "ude-dev01"
       ENV_TYPE: "Sandbox"
       REGION: "india"
       CURRENCY: "USD"

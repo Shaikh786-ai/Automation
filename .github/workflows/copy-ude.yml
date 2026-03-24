@@ -20,70 +20,91 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Install PAC CLI
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
+      # Ensure PAC CLI exists
       - name: Ensure PAC CLI
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
           if ! command -v pac >/dev/null 2>&1; then
             dotnet tool install -g Microsoft.PowerApps.CLI.Tool
             echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           fi
-          pac help
+          pac help >/dev/null
 
-      # Base OIDC authentication
-      - name: PAC auth base
+      # OIDC Authentication
+      - name: PAC auth (OIDC)
         shell: bash
         run: |
+          set -euo pipefail
           pac auth clear || true
           pac auth create \
             --tenant "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.PP_CLIENT_ID }}" \
             --githubFederated
 
-      # 🔑 Resolve SOURCE env ID
+          echo "✅ Authenticated"
+          pac auth who
+
+      # Validate environments are visible
+      - name: Validate environment access
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking accessible environments..."
+          pac org list
+
+      # 🔑 Resolve SOURCE environment ID
       - name: Resolve SOURCE environment ID
         shell: bash
         run: |
-          set -e
-          pac auth create \
-            --url "$SOURCE_ENV_URL" \
-            --name "sourceEnv"
+          set -euo pipefail
 
-          pac auth select --name "sourceEnv"
+          pac org select --environment "$SOURCE_ENV_URL"
 
           SOURCE_ID=$(pac org who --json | jq -r '.EnvironmentId')
 
-          echo "SOURCE_ENV_ID=$SOURCE_ID" >> $GITHUB_ENV
-          echo "Resolved SOURCE_ENV_ID: $SOURCE_ID"
+          if [ -z "$SOURCE_ID" ] || [ "$SOURCE_ID" = "null" ]; then
+            echo "❌ Failed to resolve SOURCE environment ID"
+            exit 1
+          fi
 
-      # 🔑 Resolve TARGET env ID
+          echo "SOURCE_ENV_ID=$SOURCE_ID" >> $GITHUB_ENV
+          echo "✅ SOURCE_ENV_ID: $SOURCE_ID"
+
+      # 🔑 Resolve TARGET environment ID
       - name: Resolve TARGET environment ID
         shell: bash
         run: |
-          set -e
-          pac auth create \
-            --url "$TARGET_ENV_URL" \
-            --name "targetEnv"
+          set -euo pipefail
 
-          pac auth select --name "targetEnv"
+          pac org select --environment "$TARGET_ENV_URL"
 
           TARGET_ID=$(pac org who --json | jq -r '.EnvironmentId')
 
+          if [ -z "$TARGET_ID" ] || [ "$TARGET_ID" = "null" ]; then
+            echo "❌ Failed to resolve TARGET environment ID"
+            exit 1
+          fi
+
           echo "TARGET_ENV_ID=$TARGET_ID" >> $GITHUB_ENV
-          echo "Resolved TARGET_ENV_ID: $TARGET_ID"
+          echo "✅ TARGET_ENV_ID: $TARGET_ID"
 
       # 🚀 Copy Dataverse DB
       - name: Copy Dataverse database
         shell: bash
         run: |
-          set -e
+          set -euo pipefail
+
+          echo "SOURCE: $SOURCE_ENV_ID"
+          echo "TARGET: $TARGET_ENV_ID"
 
           case "$COPY_TYPE" in
             FullCopy|MinimalCopy) ;;
-            *) echo "Invalid COPY_TYPE" && exit 2 ;;
+            *) echo "❌ Invalid COPY_TYPE" && exit 2 ;;
           esac
 
           pac admin copy \

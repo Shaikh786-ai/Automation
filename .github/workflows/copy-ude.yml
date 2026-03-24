@@ -85,7 +85,7 @@ jobs:
           echo "TARGET_ENV_ID=$TARGET_ID" >> $GITHUB_ENV
           echo "✅ TARGET_ENV_ID: $TARGET_ID"
 
-      # 🚀 Copy Dataverse DB WITHOUT changing target environment name
+      # 🚀 Copy Dataverse database without renaming target environment
       - name: Copy Dataverse database
         shell: bash
         run: |
@@ -93,13 +93,21 @@ jobs:
           echo "SOURCE: $SOURCE_ENV_ID"
           echo "TARGET: $TARGET_ENV_ID"
 
+          # Get existing display name of target environment
+          TARGET_DISPLAY_NAME=$(pac org who --environment "$TARGET_ENV_URL" --json | jq -r '.DisplayName')
+          if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
+            echo "❌ Target environment display name is missing"
+            exit 1
+          fi
+          echo "TARGET_DISPLAY_NAME=$TARGET_DISPLAY_NAME"
+
           case "$COPY_TYPE" in
             FullCopy|MinimalCopy) ;;
             *) echo "❌ Invalid COPY_TYPE" && exit 2 ;;
           esac
 
-          # Removed --name to keep target environment name intact
           pac admin copy \
+            --name "$TARGET_DISPLAY_NAME" \
             --source-env "$SOURCE_ENV_ID" \
             --target-env "$TARGET_ENV_ID" \
             --type "$COPY_TYPE" \

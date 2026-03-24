@@ -108,7 +108,7 @@ jobs:
           esac
 
           pac admin copy \
-            --name "DataverseCopyJob" \
+            
             --source-env "$SOURCE_ENV_ID" \
             --target-env "$TARGET_ENV_ID" \
             --type "$COPY_TYPE" \

@@ -1,35 +1,44 @@
 name: Create UDE (OIDC, no secrets)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch   # You can switch to push if you want auto execution
 
 permissions:
-  id-token: write   # required for GitHub OIDC
+  id-token: write
   contents: read
 
 jobs:
   create-ude:
     runs-on: ubuntu-latest
+
+    env:
+      ENV_NAME: "ude-dev02"
+      ENV_TYPE: "Sandbox"
+      REGION: "india"
+      CURRENCY: "USD"
+      LANGUAGE: "1033"
+      DOMAIN_NAME: "ude-dev01"
+
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions
+      # Install Power Platform CLI actions
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Create environment using federated credentials (no client secret)
+      # Create environment using OIDC (no client secret)
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1
         with:
-          # OIDC: only app-id + tenant-id required when federated credentials are configured
-          app-id:    ${{ secrets.PP_CLIENT_ID }}
+          app-id: ${{ secrets.PP_CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # REQUIRED display name for the new environment
-          name: ude-dev02
+          # Hardcoded values from env
+          name: ${{ env.ENV_NAME }}
+          environment-type: ${{ env.ENV_TYPE }}
+          region: ${{ env.REGION }}
+          currency: ${{ env.CURRENCY }}
+          language: ${{ env.LANGUAGE }}
+          domain-name: ${{ env.DOMAIN_NAME }}
 
-          # Environment configuration
-          environment-type: Sandbox
-          region: india        # change if needed
-          currency: USD
-          language: 1033
-          domain-name: ude-dev01
+      - name: Done
+        run: echo "UDE environment created successfully."

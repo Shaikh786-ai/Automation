@@ -1,4 +1,4 @@
-name: Copy Dataverse DB (URLs → Existing) — OIDC, no secrets
+name: Copy Dataverse DB (URL-based, OIDC, no inputs)
 
 on:
   workflow_dispatch
@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 env:
-  SOURCE_ENV_URL: "https://org6ee75726.crm8.dynamics.com/"
-  TARGET_ENV_URL: "https://orgc6161dd6.crm8.dynamics.com/"
-  COPY_TYPE: "FullCopy"     # FullCopy or MinimalCopy
+  SOURCE_ENV_URL: "https://org6ee75726.crm8.dynamics.com"
+  TARGET_ENV_URL: "https://orgc6161dd6.crm8.dynamics.com"
+  COPY_TYPE: "FullCopy"
   WAIT_MINUTES: "240"
 
 jobs:
@@ -20,66 +20,70 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install Power Platform CLI
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Ensure PAC CLI is available
-      - name: Verify PAC presence (and fallback install)
+      - name: Ensure PAC CLI
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
           if ! command -v pac >/dev/null 2>&1; then
-            echo "Installing PAC via dotnet..."
             dotnet tool install -g Microsoft.PowerApps.CLI.Tool
             echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           fi
-          pac help >/dev/null
+          pac help
 
-      # Authenticate using OIDC
-      - name: PAC auth (OIDC, admin context)
+      # Base OIDC authentication
+      - name: PAC auth base
         shell: bash
         run: |
-          set -euo pipefail
           pac auth clear || true
           pac auth create \
-            --tenant        "${{ secrets.PP_TENANT_ID }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.PP_CLIENT_ID }}" \
             --githubFederated
-          pac auth who
 
-      # 🔍 Resolve environment URLs → IDs
-      - name: Resolve environment IDs
-        id: resolve
+      # 🔑 Resolve SOURCE env ID
+      - name: Resolve SOURCE environment ID
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
+          pac auth create \
+            --url "$SOURCE_ENV_URL" \
+            --name "sourceEnv"
 
-          pac admin list --json > envs.json
+          pac auth select --name "sourceEnv"
 
-          SOURCE_ID=$(jq -r --arg URL "$SOURCE_ENV_URL" \
-            '.[] | select(.properties.linkedEnvironmentMetadata.instanceUrl==$URL) | .name' envs.json)
-
-          TARGET_ID=$(jq -r --arg URL "$TARGET_ENV_URL" \
-            '.[] | select(.properties.linkedEnvironmentMetadata.instanceUrl==$URL) | .name' envs.json)
-
-          if [ -z "$SOURCE_ID" ] || [ -z "$TARGET_ID" ]; then
-            echo "❌ Failed to resolve environment IDs from URLs"
-            exit 1
-          fi
+          SOURCE_ID=$(pac org who --json | jq -r '.EnvironmentId')
 
           echo "SOURCE_ENV_ID=$SOURCE_ID" >> $GITHUB_ENV
-          echo "TARGET_ENV_ID=$TARGET_ID" >> $GITHUB_ENV
+          echo "Resolved SOURCE_ENV_ID: $SOURCE_ID"
 
-      # 🚀 Copy Dataverse DB
-      - name: Copy Dataverse database (source → target)
+      # 🔑 Resolve TARGET env ID
+      - name: Resolve TARGET environment ID
         shell: bash
         run: |
-          set -euo pipefail
+          set -e
+          pac auth create \
+            --url "$TARGET_ENV_URL" \
+            --name "targetEnv"
+
+          pac auth select --name "targetEnv"
+
+          TARGET_ID=$(pac org who --json | jq -r '.EnvironmentId')
+
+          echo "TARGET_ENV_ID=$TARGET_ID" >> $GITHUB_ENV
+          echo "Resolved TARGET_ENV_ID: $TARGET_ID"
+
+      # 🚀 Copy Dataverse DB
+      - name: Copy Dataverse database
+        shell: bash
+        run: |
+          set -e
 
           case "$COPY_TYPE" in
             FullCopy|MinimalCopy) ;;
-            *) echo "Invalid COPY_TYPE. Use 'FullCopy' or 'MinimalCopy'." && exit 2 ;;
+            *) echo "Invalid COPY_TYPE" && exit 2 ;;
           esac
 
           pac admin copy \
@@ -91,4 +95,4 @@ jobs:
             --max-async-wait-time "$WAIT_MINUTES"
 
       - name: Done
-        run: echo "Database copy submitted/completed."
+        run: echo "✅ Database copy completed."

@@ -1,53 +1,42 @@
-name: Copy Dataverse DB (Existing → Existing) — OIDC, no secrets
+name: Copy Dataverse DB (URLs → Existing) — OIDC, no secrets
 
 on:
-  workflow_dispatch:
-    inputs:
-      SOURCE_ENV_ID:
-        description: "Source environment ID (GUID)"
-        required: true
-      TARGET_ENV_ID:
-        description: "Target environment ID (GUID)"
-        required: true
-      COPY_TYPE:
-        description: "FullCopy (with data) or MinimalCopy (schema only)"
-        required: true
-        default: "FullCopy"
-      WAIT_MINUTES:
-        description: "Max async wait time (minutes)"
-        required: true
-        default: "240"
+  workflow_dispatch
 
 permissions:
   id-token: write
   contents: read
 
+env:
+  SOURCE_ENV_URL: "https://ude-dev01.crm.dynamics.com"
+  TARGET_ENV_URL: "https://ude-dev02.crm.dynamics.com"
+  COPY_TYPE: "FullCopy"     # FullCopy or MinimalCopy
+  WAIT_MINUTES: "240"
+
 jobs:
   copy-db:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      # Recommended by Microsoft to provision PAC on a runner
+      # Install Power Platform CLI
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Verify PAC availability; if missing, install via .NET global tool and export path.
+      # Ensure PAC CLI is available
       - name: Verify PAC presence (and fallback install)
         shell: bash
         run: |
           set -euo pipefail
-          echo "PATH before: $PATH"
           if ! command -v pac >/dev/null 2>&1; then
-            echo "PAC not found after actions-install. Installing via dotnet global tool..."
+            echo "Installing PAC via dotnet..."
             dotnet tool install -g Microsoft.PowerApps.CLI.Tool
             echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
           fi
-          echo "PATH after: $PATH"
-          # Use 'pac help' (not '--version') to avoid parser differences
           pac help >/dev/null
 
-      # Authenticate using OIDC (no client secrets)
+      # Authenticate using OIDC
       - name: PAC auth (OIDC, admin context)
         shell: bash
         run: |
@@ -59,23 +48,47 @@ jobs:
             --githubFederated
           pac auth who
 
-      # Copy from source → target; correct subcommand is 'pac admin copy'
+      # 🔍 Resolve environment URLs → IDs
+      - name: Resolve environment IDs
+        id: resolve
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pac admin list --json > envs.json
+
+          SOURCE_ID=$(jq -r --arg URL "$SOURCE_ENV_URL" \
+            '.[] | select(.properties.linkedEnvironmentMetadata.instanceUrl==$URL) | .name' envs.json)
+
+          TARGET_ID=$(jq -r --arg URL "$TARGET_ENV_URL" \
+            '.[] | select(.properties.linkedEnvironmentMetadata.instanceUrl==$URL) | .name' envs.json)
+
+          if [ -z "$SOURCE_ID" ] || [ -z "$TARGET_ID" ]; then
+            echo "❌ Failed to resolve environment IDs from URLs"
+            exit 1
+          fi
+
+          echo "SOURCE_ENV_ID=$SOURCE_ID" >> $GITHUB_ENV
+          echo "TARGET_ENV_ID=$TARGET_ID" >> $GITHUB_ENV
+
+      # 🚀 Copy Dataverse DB
       - name: Copy Dataverse database (source → target)
         shell: bash
         run: |
           set -euo pipefail
-          case "${{ github.event.inputs.COPY_TYPE }}" in
+
+          case "$COPY_TYPE" in
             FullCopy|MinimalCopy) ;;
             *) echo "Invalid COPY_TYPE. Use 'FullCopy' or 'MinimalCopy'." && exit 2 ;;
           esac
 
           pac admin copy \
             --name "DataverseCopyJob" \
-            --source-env "${{ github.event.inputs.SOURCE_ENV_ID }}" \
-            --target-env "${{ github.event.inputs.TARGET_ENV_ID }}" \
-            --type       "${{ github.event.inputs.COPY_TYPE }}" \
-            --async      false \
-            --max-async-wait-time "${{ github.event.inputs.WAIT_MINUTES }}"
+            --source-env "$SOURCE_ENV_ID" \
+            --target-env "$TARGET_ENV_ID" \
+            --type "$COPY_TYPE" \
+            --async false \
+            --max-async-wait-time "$WAIT_MINUTES"
 
       - name: Done
         run: echo "Database copy submitted/completed."

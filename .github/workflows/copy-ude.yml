@@ -8,8 +8,8 @@ permissions:
   contents: read
 
 env:
-  SOURCE_ENV_URL: "https://ude-dev01.crm.dynamics.com"
-  TARGET_ENV_URL: "https://ude-dev02.crm.dynamics.com"
+  SOURCE_ENV_URL: "https://org6ee75726.crm8.dynamics.com/"
+  TARGET_ENV_URL: "https://orgc6161dd6.crm8.dynamics.com/"
   COPY_TYPE: "FullCopy"     # FullCopy or MinimalCopy
   WAIT_MINUTES: "240"
 

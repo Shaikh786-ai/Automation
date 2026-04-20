@@ -28,7 +28,7 @@ jobs:                 # Groups all the jobs (tasks) in the workflow.
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
       # Create environment using OIDC (no client secret)
-      - name: Create UDE environment
+      - name: Create UDE environment          # Gives a readable name to this step.
         uses: microsoft/powerplatform-actions/create-environment@v1      # Uses a predefined GitHub Action to create a Power Platform environment.
         with:          # Passes input parameters to the action.
           app-id: ${{ secrets.PP_CLIENT_ID }}          # Uses a stored GitHub secret for the application (client) ID.

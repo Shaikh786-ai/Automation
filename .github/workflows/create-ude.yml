@@ -42,5 +42,5 @@ jobs:                 # Groups all the jobs (tasks) in the workflow.
           language: ${{ env.LANGUAGE }}
           domain-name: ${{ env.DOMAIN_NAME }}
 
-      - name: Done
-        run: echo "UDE environment created successfully."
+      - name: Done                                           # Final step label.
+        run: echo "UDE environment created successfully."    # Runs a simple command to print a success message in the workflow logs.

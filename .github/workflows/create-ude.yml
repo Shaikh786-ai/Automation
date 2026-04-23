@@ -14,12 +14,12 @@ jobs:                 # Groups all the jobs (tasks) in the workflow.
     runs-on: ubuntu-latest  # Specifies that the job will run on the latest Ubuntu virtual machine.
 
     env:              # Defines environment variables used throughout the job.
-      ENV_NAME: "ude-dev01"
+      ENV_NAME: "ude-dev02"
       ENV_TYPE: "Sandbox"
       REGION: "india"
       CURRENCY: "USD"
       LANGUAGE: "1033"
-      DOMAIN_NAME: "ude-dev01"
+      DOMAIN_NAME: "ude-dev02"
 
     steps:            # Defines the sequence of actions executed in the job.
       - uses: actions/checkout@v4        # Checks out (downloads) the repository code into the runner so it can be used in the workflow.

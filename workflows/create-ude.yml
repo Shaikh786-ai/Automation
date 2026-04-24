@@ -2,9 +2,14 @@ name: Create UDE (OIDC, no secrets)
 # Defines the name of the workflow as it appears in GitHub Actions. 
 # It indicates this workflow creates a UDE environment using OIDC authentication (without client secrets).
 
-on:                   # Specifies when the workflow should run.
-  workflow_dispatch:   # Allows you to trigger the workflow manually from the GitHub UI (instead of running automatically on every push).
-
+#on:                   # Specifies when the workflow should run.
+  #workflow_dispatch:   # Allows you to trigger the workflow manually from the GitHub UI (instead of running automatically on every push).
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - My_Automation
+      
 permissions:          # Defines what access the workflow has.
   id-token: write     # Grants permission to request an OIDC token for secure authentication.
   contents: read      # Allows the workflow to read repository contents (needed for checkout and other actions).

@@ -1,4 +1,4 @@
-name: Create UDE (OIDC, no secrets)
+name: Create UDE FO (OIDC, no secrets)
 on:
 workflow_dispatch:
 permissions:

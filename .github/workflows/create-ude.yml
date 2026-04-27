@@ -26,7 +26,7 @@ jobs:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          name: test-ude-dev01
+          name: test-ude-dev02
           environment-type: Sandbox
           region: unitedstates
           currency: USD

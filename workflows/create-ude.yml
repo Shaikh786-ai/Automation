@@ -31,7 +31,7 @@ jobs:                 # Groups all the jobs (tasks) in the workflow.
       - name: Create UDE environment          # Gives a readable name to this step.
         uses: microsoft/powerplatform-actions/create-environment@v1      # Uses a predefined GitHub Action to create a Power Platform environment.
         with:          # Passes input parameters to the action.
-          app-id: ${{ secrets.PP_CLIENT_ID }}          # Uses a stored GitHub secret for the application (client) ID.
+          app-id: ${{ secrets.CLIENT_ID }}          # Uses a stored GitHub secret for the application (client) ID.
           tenant-id: ${{ secrets.PP_TENANT_ID }}       # Uses a stored secret for the Azure tenant ID.
 
           # Hardcoded values from env

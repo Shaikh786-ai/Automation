@@ -1,0 +1,33 @@
+name: Delete UDE (OIDC, no secrets)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write   # required for GitHub OIDC
+  contents: read
+
+jobs:
+  delete-ude:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install PAC CLI wrapper actions
+      - uses: microsoft/powerplatform-actions/actions-install@v1
+
+      # Delete environment using federated credentials (no client secret)
+      - name: Delete UDE environment
+        uses: microsoft/powerplatform-actions/delete-environment@v1
+        with:
+          # OIDC: only app-id + tenant-id required when federated credentials are configured
+          app-id:    ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.PP_TENANT_ID }}
+
+          # Use the Environment ID (GUID) here
+          environment-id: d08708b2-be2a-e248-9029-8a57aed3420d
+
+          # Optional flags (uncomment if you want to enforce non-interactive deletes and wait)
+          force: true
+          wait-for-completion: true
+          max-async-wait-time: 90

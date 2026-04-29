@@ -2,6 +2,12 @@ name: Delete UDE (OIDC, no secrets)
 
 on:
   workflow_dispatch:
+    inputs:
+      environment_id:
+        description: "Enter Power Platform Environment ID (GUID)"
+        required: true
+        type: string
+
   push:
     branches:
       - My_Automation
@@ -23,14 +29,12 @@ jobs:
       - name: Delete UDE environment
         uses: microsoft/powerplatform-actions/delete-environment@v1
         with:
-          # OIDC: only app-id + tenant-id required when federated credentials are configured
           app-id:    ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # Use the Environment ID (GUID) here
-          environment-id: d08708b2-be2a-e248-9029-8a57aed3420d
+          # Take environment ID from user input instead of hardcoding
+          environment-id: ${{ github.event.inputs.environment_id }}
 
-          # Optional flags (uncomment if you want to enforce non-interactive deletes and wait)
           force: true
           wait-for-completion: true
           max-async-wait-time: 90

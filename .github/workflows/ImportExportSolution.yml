@@ -3,8 +3,12 @@ name: Import Export Solution
 on:
   workflow_dispatch:
     inputs:
-      environment_url:
-        description: "Dataverse Environment URL"
+      source_environment_url:
+        description: "Source Environment URL (Export)"
+        required: true
+
+      target_environment_url:
+        description: "Target Environment URL (Import)"
         required: true
 
       solution_name:
@@ -17,6 +21,7 @@ permissions:
 
 jobs:
 
+# ================= BUILD (EXPORT) =================
   build:
     runs-on: windows-latest
 
@@ -25,29 +30,24 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Install PAC CLI
     - name: Install Power Platform CLI
       run: dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
     - name: Add PAC to PATH
       run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
-    # =========================
-    # AUTH (FIXED - NO HANG)
-    # =========================
-    - name: Authenticate to Power Platform
+    # ✅ AUTH TO SOURCE ENV
+    - name: Authenticate to Source Environment
       run: |
         pac auth create `
-          --url "${{ inputs.environment_url }}" `
+          --environment "${{ inputs.source_environment_url }}" `
           --applicationId ${{ secrets.CLIENT_ID }} `
           --clientSecret ${{ secrets.PP_CLIENT_SECRET }} `
           --tenant ${{ secrets.PP_TENANT_ID }}
 
-    # Publish customizations
     - name: Publish Customizations
       run: pac solution publish
 
-    # Export solution
     - name: Export Solution
       run: |
         pac solution export `
@@ -55,7 +55,6 @@ jobs:
           --path ./solution.zip `
           --managed false
 
-    # Upload artifact
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -63,6 +62,7 @@ jobs:
         path: solution.zip
 
 
+# ================= DEPLOY (IMPORT) =================
   deploy:
     runs-on: windows-latest
     needs: build
@@ -80,18 +80,15 @@ jobs:
     - name: Add PAC to PATH
       run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
-    # =========================
-    # AUTH (FIXED - NO HANG)
-    # =========================
+    # ✅ AUTH TO TARGET ENV
     - name: Authenticate to Target Environment
       run: |
         pac auth create `
-          --url "${{ inputs.environment_url }}" `
+          --environment "${{ inputs.target_environment_url }}" `
           --applicationId ${{ secrets.CLIENT_ID }} `
           --clientSecret ${{ secrets.PP_CLIENT_SECRET }} `
           --tenant ${{ secrets.PP_TENANT_ID }}
 
-    # Import solution
     - name: Import Solution
       run: |
         pac solution import `

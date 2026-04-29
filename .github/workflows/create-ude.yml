@@ -13,6 +13,11 @@ on:
         required: true
         type: string
 
+      user_email:
+        description: "User email to grant access"
+        required: true
+        type: string
+
       environment_type:
         description: "Environment type"
         required: true
@@ -47,10 +52,6 @@ on:
         default: D365_FinOps_Finance
         type: string
 
-  push:
-    branches:
-      - My_Automation
-
 permissions:
   id-token: write
   contents: read
@@ -65,7 +66,8 @@ jobs:
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1.9.1
 
-      - name: Create UDE environment (async-safe)
+      # ✅ Create Environment
+      - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
         with:
           app-id: ${{ secrets.CLIENT_ID }}
@@ -79,9 +81,9 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
 
           templates: ${{ github.event.inputs.templates }}
-          
+
           max-async-wait-time: 240
-          
+
           template-metadata-json: |
             {
               "PostProvisioningPackages": [
@@ -91,3 +93,42 @@ jobs:
                 }
               ]
             }
+
+      # ✅ Wait for environment + FO provisioning
+      - name: Wait for provisioning to stabilize
+        run: |
+          echo "Waiting for environment + FO provisioning..."
+          sleep 600
+
+      # ✅ Authenticate using OIDC (NO client secret)
+      - name: Authenticate PAC CLI (OIDC)
+        run: |
+          pac auth create \
+            --applicationId ${{ secrets.CLIENT_ID }} \
+            --tenant ${{ secrets.PP_TENANT_ID }} \
+            --cloud Public \
+            --useDeviceCode false
+
+      # ✅ Select environment
+      - name: Select environment
+        run: |
+          pac org select --environment ${{ github.event.inputs.environment_name }}
+
+      # ✅ Assign user access
+      - name: Assign System Administrator role
+        run: |
+          pac admin assign-user \
+            --user "${{ github.event.inputs.user_email }}" \
+            --role "System Administrator"
+
+      # ✅ Final wait to allow FO sync
+      - name: Wait for FO user sync
+        run: |
+          echo "Waiting for FO user sync..."
+          sleep 300
+
+      # ✅ Output
+      - name: Done
+        run: |
+          echo "Environment created successfully"
+          echo "User granted access: ${{ github.event.inputs.user_email }}"

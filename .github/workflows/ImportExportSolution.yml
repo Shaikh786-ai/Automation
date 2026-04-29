@@ -1,4 +1,4 @@
-name: Power Platform ALM (Secrets + Federated Auth)
+name: Import Export Solution
 
 on:
   workflow_dispatch:

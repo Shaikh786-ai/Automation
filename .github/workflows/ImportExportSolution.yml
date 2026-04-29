@@ -1,4 +1,4 @@
-name: Power Platform ALM
+name: Import Export Solution
 
 on:
   workflow_dispatch:

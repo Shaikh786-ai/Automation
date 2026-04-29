@@ -2,6 +2,51 @@ name: Create UDE (OIDC, no secrets)
 
 on:
   workflow_dispatch:
+    inputs:
+      environment_name:
+        description: "Name of the UDE environment"
+        required: true
+        type: string
+
+      domain_name:
+        description: "Unique domain name for the environment"
+        required: true
+        type: string
+
+      environment_type:
+        description: "Environment type"
+        required: true
+        default: Sandbox
+        type: choice
+        options:
+          - Sandbox
+          - Production
+          - Trial
+
+      region:
+        description: "Dataverse region"
+        required: true
+        default: unitedstates
+        type: string
+
+      currency:
+        description: "Currency"
+        required: true
+        default: USD
+        type: string
+
+      language:
+        description: "Language code"
+        required: true
+        default: "1033"
+        type: string
+
+      templates:
+        description: "Power Platform template"
+        required: true
+        default: D365_FinOps_Finance
+        type: string
+
   push:
     branches:
       - My_Automation
@@ -26,16 +71,15 @@ jobs:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          name: test-ude-dev02
-          environment-type: Sandbox
-          region: unitedstates
-          currency: USD
-          language: 1033
-          domain-name: ude-dev01
+          name: ${{ github.event.inputs.environment_name }}
+          environment-type: ${{ github.event.inputs.environment_type }}
+          region: ${{ github.event.inputs.region }}
+          currency: ${{ github.event.inputs.currency }}
+          language: ${{ github.event.inputs.language }}
+          domain-name: ${{ github.event.inputs.domain_name }}
 
-          templates: D365_FinOps_Finance
+          templates: ${{ github.event.inputs.templates }}
 
-          # Keep provisioning metadata clean and valid JSON
           template-metadata-json: |
             {
               "PostProvisioningPackages": [

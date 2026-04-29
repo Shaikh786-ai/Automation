@@ -79,7 +79,9 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
 
           templates: ${{ github.event.inputs.templates }}
-
+          
+          max-async-wait-time: 240
+          
           template-metadata-json: |
             {
               "PostProvisioningPackages": [

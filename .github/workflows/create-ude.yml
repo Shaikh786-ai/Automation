@@ -1,4 +1,4 @@
-name: Create UDE (OIDC, no secrets)
+name: Create UDE (OIDC, async-safe)
 
 on:
   workflow_dispatch:
@@ -63,12 +63,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # =========================
+      # Install CLI
+      # =========================
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1.9.1
 
-      # ✅ Create Environment
-      - name: Create UDE environment
+      # =========================
+      # Create environment (DO NOT WAIT LONG)
+      # =========================
+      - name: Create UDE environment (async)
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
+        continue-on-error: true
         with:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
@@ -82,7 +88,7 @@ jobs:
 
           templates: ${{ github.event.inputs.templates }}
 
-          max-async-wait-time: 240
+          max-async-wait-time: 30
 
           template-metadata-json: |
             {
@@ -94,41 +100,68 @@ jobs:
               ]
             }
 
-      # ✅ Wait for environment + FO provisioning
-      - name: Wait for provisioning to stabilize
-        run: |
-          echo "Waiting for environment + FO provisioning..."
-          sleep 600
-
-      # ✅ Authenticate using OIDC (NO client secret)
-      - name: Authenticate PAC CLI (OIDC)
+      # =========================
+      # AUTH (OIDC - no secrets)
+      # =========================
+      - name: Authenticate PAC CLI
         run: |
           pac auth create \
             --applicationId ${{ secrets.CLIENT_ID }} \
-            --tenant ${{ secrets.PP_TENANT_ID }} \
-            --cloud Public \
-            --useDeviceCode false
+            --tenant ${{ secrets.PP_TENANT_ID }}
 
-      # ✅ Select environment
+      # =========================
+      # WAIT FOR ENVIRONMENT READY (POLLING STEP)
+      # =========================
+      - name: Poll environment until ready
+        run: |
+          echo "Waiting for environment to become READY..."
+
+          for i in {1..60}
+          do
+            STATUS=$(pac admin list --output json \
+              | jq -r '.[] | select(.DisplayName=="${{ github.event.inputs.environment_name }}") | .State')
+
+            echo "Attempt $i - Status: $STATUS"
+
+            if [ "$STATUS" == "Ready" ]; then
+              echo "Environment is READY"
+              exit 0
+            fi
+
+            sleep 60
+          done
+
+          echo "Timeout waiting for environment readiness"
+          exit 1
+
+      # =========================
+      # SELECT ENVIRONMENT
+      # =========================
       - name: Select environment
         run: |
           pac org select --environment ${{ github.event.inputs.environment_name }}
 
-      # ✅ Assign user access
+      # =========================
+      # ASSIGN USER ACCESS
+      # =========================
       - name: Assign System Administrator role
         run: |
           pac admin assign-user \
             --user "${{ github.event.inputs.user_email }}" \
             --role "System Administrator"
 
-      # ✅ Final wait to allow FO sync
-      - name: Wait for FO user sync
+      # =========================
+      # FINAL WAIT (FO sync buffer)
+      # =========================
+      - name: FO sync buffer wait
         run: |
-          echo "Waiting for FO user sync..."
+          echo "Waiting for FO provisioning sync..."
           sleep 300
 
-      # ✅ Output
-      - name: Done
+      # =========================
+      # DONE
+      # =========================
+      - name: Completion
         run: |
-          echo "Environment created successfully"
+          echo "UDE Environment created successfully"
           echo "User granted access: ${{ github.event.inputs.user_email }}"

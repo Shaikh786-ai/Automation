@@ -1,0 +1,102 @@
+name: Import Export Solution
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_url:
+        description: "Dataverse Environment URL"
+        required: true
+
+      solution_name:
+        description: "Solution Name"
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+
+  build:
+    runs-on: windows-latest
+
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    # =========================
+    # AZURE LOGIN (OIDC)
+    # =========================
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.CLIENT_ID }}
+        tenant-id: ${{ secrets.PP_TENANT_ID }}
+        allow-no-subscriptions: true
+
+    # Install PAC CLI
+    - name: Install Power Platform CLI
+      run: dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+
+    - name: Add PAC to PATH
+      run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+    # Power Platform auth
+    - name: Connect to Power Platform
+      run: |
+        pac auth create --url "${{ inputs.environment_url }}"
+
+    - name: Publish Customizations
+      run: pac solution publish
+
+    - name: Export Solution
+      run: |
+        pac solution export `
+          --name "${{ inputs.solution_name }}" `
+          --path ./solution.zip `
+          --managed false
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: solution
+        path: solution.zip
+
+
+  deploy:
+    runs-on: windows-latest
+    needs: build
+
+    steps:
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: solution
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.CLIENT_ID }}
+        tenant-id: ${{ secrets.PP_TENANT_ID }}
+        allow-no-subscriptions: true
+
+    - name: Install Power Platform CLI
+      run: dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+
+    - name: Add PAC to PATH
+      run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
+
+    - name: Connect to Power Platform
+      run: |
+        pac auth create --url "${{ inputs.environment_url }}"
+
+    - name: Import Solution
+      run: |
+        pac solution import `
+          --path solution.zip `
+          --async true `
+          --max-async-wait-time 60 `
+          --publish-changes true `
+          --convert-to-managed true

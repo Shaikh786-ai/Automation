@@ -4,57 +4,42 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: "Name of the UDE environment"
         required: true
         type: string
 
       domain_name:
-        description: "Unique domain name for the environment"
         required: true
         type: string
 
       user_email:
-        description: "User email to grant access"
         required: true
         type: string
 
       environment_type:
-        description: "Environment type"
         required: true
         default: Sandbox
         type: choice
-        options:
-          - Sandbox
-          - Production
-          - Trial
+        options: [Sandbox, Production, Trial]
 
       region:
-        description: "Dataverse region"
         required: true
         default: unitedstates
         type: string
 
       currency:
-        description: "Currency"
         required: true
         default: USD
         type: string
 
       language:
-        description: "Language code"
         required: true
         default: "1033"
         type: string
 
       templates:
-        description: "Power Platform template"
         required: true
         default: D365_FinOps_Finance
         type: string
-
-permissions:
-  id-token: write
-  contents: read
 
 jobs:
   create-ude:
@@ -63,14 +48,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install Power Platform CLI
-      - name: Install Power Platform CLI
-        uses: microsoft/powerplatform-actions/actions-install@v1.9.1
+      # ✅ Install PAC CLI (robust way)
+      - name: Install PAC CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+          pac --version
 
-      # Create Environment
+      # ✅ Create Environment (long timeout)
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
-        continue-on-error: true
         with:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
@@ -81,27 +68,27 @@ jobs:
           currency: ${{ github.event.inputs.currency }}
           language: ${{ github.event.inputs.language }}
           domain-name: ${{ github.event.inputs.domain_name }}
-
           templates: ${{ github.event.inputs.templates }}
 
-          max-async-wait-time: 300
+          max-async-wait-time: 3600
 
-      # Authenticate PAC CLI
+      # ✅ Authenticate PAC
       - name: Authenticate PAC
         run: |
           pac auth create \
             --applicationId ${{ secrets.CLIENT_ID }} \
+            --clientSecret ${{ secrets.PP_CLIENT_SECRET }} \
             --tenant ${{ secrets.PP_TENANT_ID }}
 
-      # Wait for environment ready
+      # ✅ Wait for Dataverse readiness
       - name: Wait for environment readiness
         run: |
-          echo "Waiting for environment to become READY..."
+          echo "Waiting for Dataverse environment..."
 
           for i in {1..60}
           do
-            STATUS=$(pac admin list --output json \
-              | jq -r '.[] | select(.DisplayName=="${{ github.event.inputs.environment_name }}") | .State')
+            STATUS=$(pac admin list --output json | jq -r \
+              '.[] | select(.DisplayName=="${{ github.event.inputs.environment_name }}") | .State')
 
             echo "Attempt $i - Status: $STATUS"
 
@@ -113,10 +100,10 @@ jobs:
             sleep 60
           done
 
-          echo "Timeout waiting for environment"
+          echo "Timeout waiting for Dataverse"
           exit 1
 
-      # Extract F&O URL
+      # ✅ Extract F&O URL
       - name: Extract F&O URL
         id: fno
         run: |
@@ -131,8 +118,8 @@ jobs:
           echo "F&O URL: $FNO_URL"
           echo "fno_url=$FNO_URL" >> $GITHUB_OUTPUT
 
-      # Assign Dataverse role
-      - name: Assign System Administrator role (Dataverse)
+      # ✅ Assign Dataverse admin role
+      - name: Assign Dataverse System Administrator
         run: |
           pac org select --environment ${{ github.event.inputs.environment_name }}
 
@@ -140,47 +127,73 @@ jobs:
             --user "${{ github.event.inputs.user_email }}" \
             --role "System Administrator"
 
-      # Critical wait for F&O provisioning
-      - name: Wait for F&O provisioning
+      # ✅ Wait for F&O to be reachable (SMART POLLING)
+      - name: Wait for F&O readiness
         run: |
-          echo "Waiting for F&O provisioning to complete..."
-          sleep 900
+          FNO_URL=${{ steps.fno.outputs.fno_url }}
 
-      # Get OAuth token for F&O
+          echo "Waiting for F&O..."
+
+          for i in {1..40}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" $FNO_URL)
+
+            echo "Attempt $i - HTTP: $STATUS"
+
+            if [ "$STATUS" == "200" ] || [ "$STATUS" == "302" ]; then
+              echo "F&O is reachable"
+              exit 0
+            fi
+
+            sleep 60
+          done
+
+          echo "F&O not ready"
+          exit 1
+
+      # ✅ Get token (correct scope)
       - name: Get F&O access token
         id: token
         run: |
+          FNO_URL=${{ steps.fno.outputs.fno_url }}
+
           TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/${{ secrets.PP_TENANT_ID }}/oauth2/v2.0/token" \
             -H "Content-Type: application/x-www-form-urlencoded" \
             -d "client_id=${{ secrets.CLIENT_ID }}" \
             -d "client_secret=${{ secrets.PP_CLIENT_SECRET }}" \
-            -d "scope=https://*.operations.dynamics.com/.default" \
+            -d "scope=${FNO_URL}/.default" \
             -d "grant_type=client_credentials" | jq -r .access_token)
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      # Provision user into F&O using DMF
-      - name: Provision F&O user and role
+      # ✅ Create user in F&O
+      - name: Create F&O user
         run: |
-          FNO_URL=${{ steps.fno.outputs.fno_url }}
-          TOKEN=${{ steps.token.outputs.token }}
-
-          echo "Triggering DMF import for user provisioning..."
-
-          curl -X POST "$FNO_URL/data/DataManagementDefinitionGroups/Microsoft.Dynamics.DataEntities.ImportFromPackage" \
-            -H "Authorization: Bearer $TOKEN" \
+          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SystemUsers" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
             -H "Content-Type: application/json" \
-            -d "{
-              \"definitionGroupId\": \"UserImport\",
-              \"executionId\": \"UserImport1\",
-              \"packageUrl\": \"${{ secrets.FO_PACKAGE_URL }}\"
-            }"
+            -d '{
+              "UserId": "${{ github.event.inputs.user_email }}",
+              "UserName": "${{ github.event.inputs.user_email }}",
+              "Enabled": true
+            }'
 
-      # Final output
+      # ✅ Assign System Administrator role in F&O
+      - name: Assign F&O role
+        run: |
+          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SecurityUserRoles" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "UserId": "${{ github.event.inputs.user_email }}",
+              "SecurityRoleIdentifier": "System administrator"
+            }'
+
+      # ✅ Summary
       - name: Summary
         run: |
           echo "===================================="
-          echo "UDE ENVIRONMENT CREATED SUCCESSFULLY"
+          echo "UDE ENVIRONMENT CREATED"
           echo "F&O URL: ${{ steps.fno.outputs.fno_url }}"
-          echo "User with access: ${{ github.event.inputs.user_email }}"
+          echo "User provisioned: ${{ github.event.inputs.user_email }}"
           echo "===================================="

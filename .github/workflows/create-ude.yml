@@ -48,22 +48,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ================================
-      # Install PAC CLI (FIXED)
-      # ================================
-      - name: Install PAC CLI
-        run: |
-          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+      # ============================
+      # ✅ REQUIRED INSTALL STEP
+      # ============================
+      - name: Install Power Platform CLI
+        uses: microsoft/powerplatform-actions/actions-install@v1.9.1
 
-      - name: Verify PAC CLI
+      # (optional but safe verification)
+      - name: Verify PAC installation
         run: |
           pac help
-          echo "PAC installed successfully"
 
-      # ================================
+      # ============================
       # Create Environment
-      # ================================
+      # ============================
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
         with:
@@ -78,9 +76,7 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
           templates: ${{ github.event.inputs.templates }}
 
-          # ================================
-          # FIX: 3 HOURS WAIT TIME
-          # ================================
+          # 3 HOURS
           max-async-wait-time: 10800
 
       # ================================

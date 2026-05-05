@@ -48,14 +48,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ✅ Install PAC CLI (robust way)
+      # ================================
+      # Install PAC CLI (FIXED)
+      # ================================
       - name: Install PAC CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
-          pac --version
 
-      # ✅ Create Environment (long timeout)
+      - name: Verify PAC CLI
+        run: |
+          pac help
+          echo "PAC installed successfully"
+
+      # ================================
+      # Create Environment
+      # ================================
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
         with:
@@ -70,9 +78,14 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
           templates: ${{ github.event.inputs.templates }}
 
+          # ================================
+          # FIX: 3 HOURS WAIT TIME
+          # ================================
           max-async-wait-time: 10800
 
-      # ✅ Authenticate PAC
+      # ================================
+      # Authenticate PAC (FIXED)
+      # ================================
       - name: Authenticate PAC
         run: |
           pac auth create \
@@ -80,7 +93,9 @@ jobs:
             --clientSecret ${{ secrets.PP_CLIENT_SECRET }} \
             --tenant ${{ secrets.PP_TENANT_ID }}
 
-      # ✅ Wait for Dataverse readiness
+      # ================================
+      # Wait for Dataverse readiness
+      # ================================
       - name: Wait for environment readiness
         run: |
           echo "Waiting for Dataverse environment..."
@@ -100,10 +115,12 @@ jobs:
             sleep 60
           done
 
-          echo "Timeout waiting for Dataverse"
+          echo "Timeout waiting for environment"
           exit 1
 
-      # ✅ Extract F&O URL
+      # ================================
+      # Extract F&O URL
+      # ================================
       - name: Extract F&O URL
         id: fno
         run: |
@@ -118,7 +135,9 @@ jobs:
           echo "F&O URL: $FNO_URL"
           echo "fno_url=$FNO_URL" >> $GITHUB_OUTPUT
 
-      # ✅ Assign Dataverse admin role
+      # ================================
+      # Assign Dataverse Admin Role
+      # ================================
       - name: Assign Dataverse System Administrator
         run: |
           pac org select --environment ${{ github.event.inputs.environment_name }}
@@ -127,7 +146,9 @@ jobs:
             --user "${{ github.event.inputs.user_email }}" \
             --role "System Administrator"
 
-      # ✅ Wait for F&O to be reachable (SMART POLLING)
+      # ================================
+      # Wait for F&O availability
+      # ================================
       - name: Wait for F&O readiness
         run: |
           FNO_URL=${{ steps.fno.outputs.fno_url }}
@@ -151,7 +172,9 @@ jobs:
           echo "F&O not ready"
           exit 1
 
-      # ✅ Get token (correct scope)
+      # ================================
+      # Get F&O token
+      # ================================
       - name: Get F&O access token
         id: token
         run: |
@@ -166,7 +189,9 @@ jobs:
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
-      # ✅ Create user in F&O
+      # ================================
+      # Create F&O user
+      # ================================
       - name: Create F&O user
         run: |
           curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SystemUsers" \
@@ -178,7 +203,9 @@ jobs:
               "Enabled": true
             }'
 
-      # ✅ Assign System Administrator role in F&O
+      # ================================
+      # Assign F&O System Admin Role
+      # ================================
       - name: Assign F&O role
         run: |
           curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SecurityUserRoles" \
@@ -189,11 +216,13 @@ jobs:
               "SecurityRoleIdentifier": "System administrator"
             }'
 
-      # ✅ Summary
+      # ================================
+      # Summary
+      # ================================
       - name: Summary
         run: |
           echo "===================================="
-          echo "UDE ENVIRONMENT CREATED"
+          echo "UDE ENVIRONMENT CREATED SUCCESSFULLY"
           echo "F&O URL: ${{ steps.fno.outputs.fno_url }}"
           echo "User provisioned: ${{ github.event.inputs.user_email }}"
           echo "===================================="

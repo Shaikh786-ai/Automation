@@ -70,7 +70,7 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
           templates: ${{ github.event.inputs.templates }}
 
-          max-async-wait-time: 3600
+          max-async-wait-time: 10800
 
       # ✅ Authenticate PAC
       - name: Authenticate PAC

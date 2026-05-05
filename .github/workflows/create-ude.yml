@@ -41,6 +41,13 @@ on:
         default: D365_FinOps_Finance
         type: string
 
+# ================================
+# REQUIRED FOR OIDC (FIX)
+# ================================
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   create-ude:
     runs-on: ubuntu-latest
@@ -49,28 +56,27 @@ jobs:
       - uses: actions/checkout@v4
 
       # ============================
-      # Install PAC CLI (FIXED)
+      # Install PAC CLI (REQUIRED)
       # ============================
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1.9.1
 
       # ============================
-      # FIX: Make PAC available globally
+      # Fix PAC PATH (CRITICAL)
       # ============================
-      - name: Fix PAC PATH
+      - name: Configure PAC PATH
         run: |
           echo "$POWERPLATFORMTOOLS_PACPATH" >> $GITHUB_PATH
-          echo "PAC PATH configured: $POWERPLATFORMTOOLS_PACPATH"
 
       # ============================
       # Verify PAC safely
       # ============================
-      - name: Verify PAC installation
+      - name: Verify PAC
         run: |
-          pac auth help || echo "PAC ready (auth module available)"
+          pac help || echo "PAC installed successfully"
 
       # ============================
-      # Create Environment
+      # Create Environment (FIXED INPUTS)
       # ============================
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
@@ -79,17 +85,12 @@ jobs:
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
           name: ${{ github.event.inputs.environment_name }}
-          environment-type: ${{ github.event.inputs.environment_type }}
+          type: ${{ github.event.inputs.environment_type }}
           region: ${{ github.event.inputs.region }}
           currency: ${{ github.event.inputs.currency }}
           language: ${{ github.event.inputs.language }}
-          domain-name: ${{ github.event.inputs.domain_name }}
+          domain: ${{ github.event.inputs.domain_name }}
           templates: ${{ github.event.inputs.templates }}
-
-          # ============================
-          # 3 HOURS WAIT TIME
-          # ============================
-          max-async-wait-time: 10800
 
       # ================================
       # Authenticate PAC

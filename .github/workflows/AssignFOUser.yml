@@ -1,4 +1,4 @@
-name: Create UDE Environment (OIDC)
+name: Assign F&O Access (OIDC)
 
 on:
   workflow_dispatch:
@@ -7,34 +7,8 @@ on:
         required: true
         type: string
 
-      domain_name:
+      user_email:
         required: true
-        type: string
-
-      environment_type:
-        required: true
-        default: Sandbox
-        type: choice
-        options: [Sandbox, Production, Trial]
-
-      region:
-        required: true
-        default: unitedstates
-        type: string
-
-      currency:
-        required: true
-        default: USD
-        type: string
-
-      language:
-        required: true
-        default: "1033"
-        type: string
-
-      templates:
-        required: true
-        default: D365_FinOps_Finance
         type: string
 
 permissions:
@@ -42,80 +16,56 @@ permissions:
   contents: read
 
 jobs:
-  create-ude:
+  assign:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-
-      # 🔐 OIDC Login to Azure
       - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
-          allow-no-subscriptions: true
 
-      # Install PAC CLI
-      - name: Install PAC CLI
-        uses: microsoft/powerplatform-actions/actions-install@v1.9.1
-
-      # Authenticate PAC using OIDC context
-      - name: PAC Auth (OIDC)
-        run: |
-          pac auth create \
-            --name oidc-auth \
-            --kind ORGANIZATION \
-            --tenant ${{ secrets.PP_TENANT_ID }}
-
-      # Create environment
-      - name: Create UDE Environment
-        uses: microsoft/powerplatform-actions/create-environment@v1.9.1
+      - name: Download F&O URL artifact
+        uses: actions/download-artifact@v4
         with:
-          app-id: ${{ secrets.CLIENT_ID }}
-          tenant-id: ${{ secrets.PP_TENANT_ID }}
+          name: fno-url-${{ github.event.inputs.environment_name }}
 
-          name: ${{ github.event.inputs.environment_name }}
-          environment-type: ${{ github.event.inputs.environment_type }}
-          region: ${{ github.event.inputs.region }}
-          currency: ${{ github.event.inputs.currency }}
-          language: ${{ github.event.inputs.language }}
-          domain-name: ${{ github.event.inputs.domain_name }}
-          templates: ${{ github.event.inputs.templates }}
-
-      # Wait for readiness
-      - name: Wait for environment
-        run: |
-          for i in {1..60}
-          do
-            STATUS=$(pac admin list --output json \
-              | jq -r '.[] | select(.DisplayName=="${{ github.event.inputs.environment_name }}") | .State')
-
-            echo "Status: $STATUS"
-
-            if [ "$STATUS" == "Ready" ]; then
-              exit 0
-            fi
-
-            sleep 60
-          done
-
-          exit 1
-
-      # Extract F&O URL
-      - name: Extract F&O URL
+      - name: Load F&O URL
         id: fno
         run: |
-          FNO_URL=$(pac admin list --output json | jq -r '
-            .[]
-            | select(.DisplayName=="${{ github.event.inputs.environment_name }}")
-            | .LinkedEnvironmentMetadata.instanceUrl
-          ')
-
+          FNO_URL=$(cat fno-url.txt)
           echo "fno_url=$FNO_URL" >> $GITHUB_OUTPUT
 
-      # Save artifact
-      - uses: actions/upload-artifact@v4
-        with:
-          name: fno-url
-          path: <(echo "${{ steps.fno.outputs.fno_url }}")
+      - name: Get F&O Token
+        id: token
+        run: |
+          TOKEN=$(curl -s -X POST "https://login.microsoftonline.com/${{ secrets.PP_TENANT_ID }}/oauth2/v2.0/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "client_id=${{ secrets.CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.PP_CLIENT_SECRET }}" \
+            -d "scope=https://*.operations.dynamics.com/.default" \
+            -d "grant_type=client_credentials" | jq -r .access_token)
+
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Create F&O User
+        run: |
+          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SystemUsers" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "UserId": "${{ github.event.inputs.user_email }}",
+              "UserName": "${{ github.event.inputs.user_email }}",
+              "Enabled": true
+            }'
+
+      - name: Assign System Admin Role
+        run: |
+          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SecurityUserRoles" \
+            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "UserId": "${{ github.event.inputs.user_email }}",
+              "SecurityRoleIdentifier": "System administrator"
+            }'

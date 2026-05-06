@@ -54,7 +54,7 @@ jobs:
           fi
           pac help >/dev/null
 
-      # OIDC Authentication (✅ FIXED HERE)
+      # OIDC Authentication
       - name: PAC auth (OIDC)
         shell: bash
         run: |
@@ -68,11 +68,11 @@ jobs:
           echo "✅ Authenticated"
           pac auth who
 
-      # Validate environments are visible
+      # Validate environments
       - name: Validate environment access
         run: pac org list
 
-      # 🚀 Copy Dataverse database using ENV IDs
+      # 🚀 Copy Dataverse database
       - name: Copy Dataverse database
         shell: bash
         run: |
@@ -86,12 +86,17 @@ jobs:
           echo "SOURCE: $SOURCE_ENV_ID"
           echo "TARGET: $TARGET_ENV_ID"
 
-          # Get target display name (required by pac)
-          TARGET_DISPLAY_NAME=$(pac admin list --output json \
-            | jq -r '.[] | select(.EnvironmentId=="'"$TARGET_ENV_ID"'") | .DisplayName')
+          # 🔧 FIX: Clean PAC output before jq
+          RAW_OUTPUT=$(pac admin list --output json)
+          CLEAN_JSON=$(echo "$RAW_OUTPUT" | sed -n '/^\[/,$p')
+
+          TARGET_DISPLAY_NAME=$(echo "$CLEAN_JSON" | jq -r \
+            '.[] | select(.EnvironmentId=="'"$TARGET_ENV_ID"'") | .DisplayName')
 
           if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
             echo "❌ Could not find target environment display name"
+            echo "DEBUG OUTPUT:"
+            echo "$CLEAN_JSON"
             exit 1
           fi
 

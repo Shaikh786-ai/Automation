@@ -60,16 +60,19 @@ jobs:
           fi
           pac help >/dev/null
 
-      # OIDC Authentication
+      # 🔐 OIDC AUTH (FIXED AUDIENCE EXPLICITLY)
       - name: PAC auth (OIDC)
         shell: bash
         run: |
           set -euo pipefail
+
           pac auth clear || true
+
           pac auth create \
             --tenant "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.CLIENT_ID }}" \
-            --githubFederated
+            --githubFederated \
+            --environment "https://api.powerplatform.com"
 
           echo "✅ Authenticated"
           pac auth who
@@ -92,17 +95,17 @@ jobs:
           echo "SOURCE URL: $SOURCE_ENV_URL"
           echo "TARGET URL: $TARGET_ENV_URL"
 
-          # Resolve SOURCE ENV ID
+          # Resolve SOURCE
           pac org select --environment "$SOURCE_ENV_URL"
           SOURCE_ENV_ID=$(pac org who --json | jq -r '.EnvironmentId')
 
-          # Resolve TARGET ENV ID + Friendly Name
+          # Resolve TARGET
           pac org select --environment "$TARGET_ENV_URL"
           TARGET_ENV_ID=$(pac org who --json | jq -r '.EnvironmentId')
           TARGET_DISPLAY_NAME=$(pac org who --json | jq -r '.FriendlyName')
 
           if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
-            echo "❌ Could not resolve target environment display name"
+            echo "❌ Could not resolve target environment name"
             pac org who
             exit 1
           fi

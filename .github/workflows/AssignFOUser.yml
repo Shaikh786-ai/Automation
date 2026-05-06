@@ -1,20 +1,17 @@
-name: Assign F&O Access (Existing Environment)
+name: Assign F&O Access (Secure Minimal Input)
 
 on:
   workflow_dispatch:
     inputs:
-      environment_name:
-        required: true
-        type: string
-
       fno_url:
         required: true
-        description: "Paste the existing F&O URL of the UDE environment"
         type: string
+        description: "F&O Environment URL"
 
       user_email:
         required: true
         type: string
+        description: "User Email"
 
 permissions:
   id-token: write
@@ -25,23 +22,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       # =========================
-      # Load F&O URL directly from input
+      # MASK INPUTS (security)
       # =========================
-      - name: Set F&O URL
-        id: fno
+      - name: Set Inputs (Masked)
+        id: vars
         run: |
-          FNO_URL="${{ github.event.inputs.fno_url }}"
+          echo "::add-mask::${{ github.event.inputs.fno_url }}"
+          echo "::add-mask::${{ github.event.inputs.user_email }}"
 
-          if [ -z "$FNO_URL" ]; then
-            echo "F&O URL is missing"
-            exit 1
-          fi
-
-          echo "fno_url=$FNO_URL" >> $GITHUB_OUTPUT
+          echo "fno_url=${{ github.event.inputs.fno_url }}" >> $GITHUB_OUTPUT
+          echo "user_email=${{ github.event.inputs.user_email }}" >> $GITHUB_OUTPUT
 
       # =========================
-      # Get F&O Token (App-only auth)
+      # Get F&O Token
       # =========================
       - name: Get F&O Token
         id: token
@@ -54,47 +49,120 @@ jobs:
             -d "grant_type=client_credentials" | jq -r .access_token)
 
           if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
-            echo "Failed to get F&O token"
+            echo "Token failure"
             exit 1
           fi
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
       # =========================
-      # Create F&O User
+      # CREATE USER (SAFE)
       # =========================
       - name: Create F&O User
         run: |
-          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SystemUsers" \
+          curl -X POST "${{ steps.vars.outputs.fno_url }}/data/SystemUsers" \
             -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "UserId": "${{ github.event.inputs.user_email }}",
-              "UserName": "${{ github.event.inputs.user_email }}",
-              "Enabled": true
-            }'
+            -d "{
+              \"UserId\": \"${{ steps.vars.outputs.user_email }}\",
+              \"UserName\": \"${{ steps.vars.outputs.user_email }}\",
+              \"Enabled\": true
+            }" || echo "User already exists or pending sync"
 
       # =========================
-      # Assign System Admin Role
+      # WAIT FOR USER SYNC + AAD LINK
+      # =========================
+      - name: Wait for F&O User Provisioning
+        run: |
+          FNO_URL="${{ steps.vars.outputs.fno_url }}"
+          TOKEN="${{ steps.token.outputs.token }}"
+          USER="${{ steps.vars.outputs.user_email }}"
+
+          echo "Waiting for F&O user provisioning..."
+
+          for i in {1..40}
+          do
+            RESPONSE=$(curl -s "$FNO_URL/data/SystemUsers?\$filter=UserId eq '$USER'" \
+              -H "Authorization: Bearer $TOKEN")
+
+            COUNT=$(echo "$RESPONSE" | jq '.value | length')
+            AAD=$(echo "$RESPONSE" | jq -r '.value[0].AzureActiveDirectoryObjectId // empty')
+            ACTIVE=$(echo "$RESPONSE" | jq -r '.value[0].Enabled // false')
+
+            echo "Attempt $i - Found: $COUNT | AAD: $AAD | Active: $ACTIVE"
+
+            if [ "$COUNT" != "0" ] && [ "$AAD" != "" ] && [ "$ACTIVE" == "true" ]; then
+              echo "User fully provisioned"
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          echo "User not provisioned in F&O"
+          exit 1
+
+      # =========================
+      # ASSIGN SYSTEM ADMIN ROLE
       # =========================
       - name: Assign System Administrator Role
         run: |
-          curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SecurityUserRoles" \
-            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "UserId": "${{ github.event.inputs.user_email }}",
-              "SecurityRoleIdentifier": "System administrator"
-            }'
+          FNO_URL="${{ steps.vars.outputs.fno_url }}"
+          TOKEN="${{ steps.token.outputs.token }}"
+          USER="${{ steps.vars.outputs.user_email }}"
+
+          for i in {1..20}
+          do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST "$FNO_URL/data/SecurityUserRoles" \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"UserId\": \"$USER\",
+                \"SecurityRoleIdentifier\": \"System administrator\"
+              }")
+
+            echo "Attempt $i - HTTP: $STATUS"
+
+            if [ "$STATUS" == "200" ] || [ "$STATUS" == "201" ]; then
+              echo "Role assigned successfully"
+              exit 0
+            fi
+
+            sleep 20
+          done
+
+          echo "Role assignment failed"
+          exit 1
 
       # =========================
-      # Summary
+      # VERIFY ROLE
+      # =========================
+      - name: Verify Role Assignment
+        run: |
+          FNO_URL="${{ steps.vars.outputs.fno_url }}"
+          TOKEN="${{ steps.token.outputs.token }}"
+          USER="${{ steps.vars.outputs.user_email }}"
+
+          RESPONSE=$(curl -s "$FNO_URL/data/SecurityUserRoles?\$filter=UserId eq '$USER'" \
+            -H "Authorization: Bearer $TOKEN")
+
+          COUNT=$(echo "$RESPONSE" | jq '.value | length')
+
+          if [ "$COUNT" -eq "0" ]; then
+            echo "Role not applied"
+            exit 1
+          fi
+
+          echo "Role verified successfully"
+
+      # =========================
+      # FINAL SUMMARY
       # =========================
       - name: Summary
         run: |
           echo "===================================="
-          echo "F&O USER ASSIGNMENT COMPLETED"
-          echo "Environment: ${{ github.event.inputs.environment_name }}"
-          echo "F&O URL: ${{ github.event.inputs.fno_url }}"
-          echo "User: ${{ github.event.inputs.user_email }}"
+          echo "F&O ACCESS PROVISIONED SUCCESSFULLY"
+          echo "User: ${{ steps.vars.outputs.user_email }}"
+          echo "Status: READY FOR LOGIN"
           echo "===================================="

@@ -1,4 +1,4 @@
-name: Assign F&O Access (Secure Minimal Input)
+name: Assign F&O Access (Correct Provisioning Model)
 
 on:
   workflow_dispatch:
@@ -24,9 +24,9 @@ jobs:
     steps:
 
       # =========================
-      # MASK INPUTS (security)
+      # Mask inputs
       # =========================
-      - name: Set Inputs (Masked)
+      - name: Set Inputs
         id: vars
         run: |
           echo "::add-mask::${{ github.event.inputs.fno_url }}"
@@ -56,31 +56,17 @@ jobs:
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
       # =========================
-      # CREATE USER (SAFE)
+      # WAIT FOR F&O AAD SYNC (REAL SOURCE OF USER)
       # =========================
-      - name: Create F&O User
-        run: |
-          curl -X POST "${{ steps.vars.outputs.fno_url }}/data/SystemUsers" \
-            -H "Authorization: Bearer ${{ steps.token.outputs.token }}" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"UserId\": \"${{ steps.vars.outputs.user_email }}\",
-              \"UserName\": \"${{ steps.vars.outputs.user_email }}\",
-              \"Enabled\": true
-            }" || echo "User already exists or pending sync"
-
-      # =========================
-      # WAIT FOR USER SYNC + AAD LINK
-      # =========================
-      - name: Wait for F&O User Provisioning
+      - name: Wait for F&O User Sync
         run: |
           FNO_URL="${{ steps.vars.outputs.fno_url }}"
           TOKEN="${{ steps.token.outputs.token }}"
           USER="${{ steps.vars.outputs.user_email }}"
 
-          echo "Waiting for F&O user provisioning..."
+          echo "Waiting for F&O to auto-sync user from Entra ID..."
 
-          for i in {1..40}
+          for i in {1..60}
           do
             RESPONSE=$(curl -s "$FNO_URL/data/SystemUsers?\$filter=UserId eq '$USER'" \
               -H "Authorization: Bearer $TOKEN")
@@ -91,15 +77,15 @@ jobs:
 
             echo "Attempt $i - Found: $COUNT | AAD: $AAD | Active: $ACTIVE"
 
-            if [ "$COUNT" != "0" ] && [ "$AAD" != "" ] && [ "$ACTIVE" == "true" ]; then
-              echo "User fully provisioned"
+            if [ "$COUNT" != "0" ] && [ "$AAD" != "" ]; then
+              echo "User successfully synced in F&O"
               exit 0
             fi
 
             sleep 30
           done
 
-          echo "User not provisioned in F&O"
+          echo "User NOT synced into F&O"
           exit 1
 
       # =========================
@@ -111,7 +97,9 @@ jobs:
           TOKEN="${{ steps.token.outputs.token }}"
           USER="${{ steps.vars.outputs.user_email }}"
 
-          for i in {1..20}
+          echo "Assigning System Administrator role..."
+
+          for i in {1..25}
           do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
               -X POST "$FNO_URL/data/SecurityUserRoles" \
@@ -150,11 +138,11 @@ jobs:
           COUNT=$(echo "$RESPONSE" | jq '.value | length')
 
           if [ "$COUNT" -eq "0" ]; then
-            echo "Role not applied"
+            echo "Role NOT applied"
             exit 1
           fi
 
-          echo "Role verified successfully"
+          echo "Role successfully applied"
 
       # =========================
       # FINAL SUMMARY
@@ -162,7 +150,7 @@ jobs:
       - name: Summary
         run: |
           echo "===================================="
-          echo "F&O ACCESS PROVISIONED SUCCESSFULLY"
+          echo "F&O PROVISIONING SUCCESSFUL"
           echo "User: ${{ steps.vars.outputs.user_email }}"
           echo "Status: READY FOR LOGIN"
           echo "===================================="

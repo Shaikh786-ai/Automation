@@ -86,10 +86,11 @@ jobs:
           echo "SOURCE: $SOURCE_ENV_ID"
           echo "TARGET: $TARGET_ENV_ID"
 
-          # ✅ FIX: Reliable way to get target display name
+          # Select target environment
           pac org select --environment "$TARGET_ENV_ID"
 
-          TARGET_DISPLAY_NAME=$(pac org who --json | jq -r '.DisplayName')
+          # ✅ FIX: use FriendlyName instead of DisplayName
+          TARGET_DISPLAY_NAME=$(pac org who --json | jq -r '.FriendlyName')
 
           if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
             echo "❌ Could not resolve target environment display name"

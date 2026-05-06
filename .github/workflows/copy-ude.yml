@@ -86,17 +86,14 @@ jobs:
           echo "SOURCE: $SOURCE_ENV_ID"
           echo "TARGET: $TARGET_ENV_ID"
 
-          # 🔧 FIX: Clean PAC output before jq
-          RAW_OUTPUT=$(pac admin list --output json)
-          CLEAN_JSON=$(echo "$RAW_OUTPUT" | sed -n '/^\[/,$p')
+          # ✅ FIX: Reliable way to get target display name
+          pac org select --environment "$TARGET_ENV_ID"
 
-          TARGET_DISPLAY_NAME=$(echo "$CLEAN_JSON" | jq -r \
-            '.[] | select(.EnvironmentId=="'"$TARGET_ENV_ID"'") | .DisplayName')
+          TARGET_DISPLAY_NAME=$(pac org who --json | jq -r '.DisplayName')
 
           if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
-            echo "❌ Could not find target environment display name"
-            echo "DEBUG OUTPUT:"
-            echo "$CLEAN_JSON"
+            echo "❌ Could not resolve target environment display name"
+            pac org who
             exit 1
           fi
 

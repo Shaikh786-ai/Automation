@@ -60,7 +60,7 @@ jobs:
           fi
           pac help >/dev/null
 
-      # 🔐 OIDC AUTH (FIXED AUDIENCE EXPLICITLY)
+      # 🔐 FIXED OIDC AUTH (removed wrong authority override)
       - name: PAC auth (OIDC)
         shell: bash
         run: |
@@ -71,8 +71,7 @@ jobs:
           pac auth create \
             --tenant "${{ secrets.PP_TENANT_ID }}" \
             --applicationId "${{ secrets.CLIENT_ID }}" \
-            --githubFederated \
-            --environment "https://api.powerplatform.com"
+            --githubFederated
 
           echo "✅ Authenticated"
           pac auth who
@@ -95,11 +94,11 @@ jobs:
           echo "SOURCE URL: $SOURCE_ENV_URL"
           echo "TARGET URL: $TARGET_ENV_URL"
 
-          # Resolve SOURCE
+          # Resolve SOURCE ENV
           pac org select --environment "$SOURCE_ENV_URL"
           SOURCE_ENV_ID=$(pac org who --json | jq -r '.EnvironmentId')
 
-          # Resolve TARGET
+          # Resolve TARGET ENV
           pac org select --environment "$TARGET_ENV_URL"
           TARGET_ENV_ID=$(pac org who --json | jq -r '.EnvironmentId')
           TARGET_DISPLAY_NAME=$(pac org who --json | jq -r '.FriendlyName')

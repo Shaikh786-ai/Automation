@@ -1,0 +1,114 @@
+name: Copy Dataverse DB (Env ID based, OIDC)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_env_id:
+        description: "Source Environment ID"
+        required: true
+        type: string
+
+      target_env_id:
+        description: "Target Environment ID"
+        required: true
+        type: string
+
+      copy_type:
+        description: "Copy Type"
+        required: true
+        default: FullCopy
+        type: choice
+        options:
+          - FullCopy
+          - MinimalCopy
+
+      wait_minutes:
+        description: "Max async wait time (minutes)"
+        required: true
+        default: "240"
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  copy-db:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install PAC CLI
+      - name: Install Power Platform CLI
+        uses: microsoft/powerplatform-actions/actions-install@v1
+
+      # Ensure PAC CLI exists
+      - name: Ensure PAC CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v pac >/dev/null 2>&1; then
+            dotnet tool install -g Microsoft.PowerApps.CLI.Tool
+            echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+          fi
+          pac help >/dev/null
+
+      # OIDC Authentication (✅ FIXED HERE)
+      - name: PAC auth (OIDC)
+        shell: bash
+        run: |
+          set -euo pipefail
+          pac auth clear || true
+          pac auth create \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --applicationId "${{ secrets.CLIENT_ID }}" \
+            --githubFederated
+
+          echo "✅ Authenticated"
+          pac auth who
+
+      # Validate environments are visible
+      - name: Validate environment access
+        run: pac org list
+
+      # 🚀 Copy Dataverse database using ENV IDs
+      - name: Copy Dataverse database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SOURCE_ENV_ID="${{ github.event.inputs.source_env_id }}"
+          TARGET_ENV_ID="${{ github.event.inputs.target_env_id }}"
+          COPY_TYPE="${{ github.event.inputs.copy_type }}"
+          WAIT_MINUTES="${{ github.event.inputs.wait_minutes }}"
+
+          echo "SOURCE: $SOURCE_ENV_ID"
+          echo "TARGET: $TARGET_ENV_ID"
+
+          # Get target display name (required by pac)
+          TARGET_DISPLAY_NAME=$(pac admin list --output json \
+            | jq -r '.[] | select(.EnvironmentId=="'"$TARGET_ENV_ID"'") | .DisplayName')
+
+          if [ -z "$TARGET_DISPLAY_NAME" ] || [ "$TARGET_DISPLAY_NAME" = "null" ]; then
+            echo "❌ Could not find target environment display name"
+            exit 1
+          fi
+
+          echo "TARGET_DISPLAY_NAME=$TARGET_DISPLAY_NAME"
+
+          case "$COPY_TYPE" in
+            FullCopy|MinimalCopy) ;;
+            *) echo "❌ Invalid COPY_TYPE" && exit 2 ;;
+          esac
+
+          pac admin copy \
+            --name "$TARGET_DISPLAY_NAME" \
+            --source-env "$SOURCE_ENV_ID" \
+            --target-env "$TARGET_ENV_ID" \
+            --type "$COPY_TYPE" \
+            --async false \
+            --max-async-wait-time "$WAIT_MINUTES"
+
+      - name: Done
+        run: echo "✅ Database copy completed."

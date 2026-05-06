@@ -20,23 +20,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.CLIENT_ID }}
-          tenant-id: ${{ secrets.PP_TENANT_ID }}
-
+      # =========================
+      # Download correct artifact (scoped per environment)
+      # =========================
       - name: Download F&O URL artifact
         uses: actions/download-artifact@v4
         with:
           name: fno-url-${{ github.event.inputs.environment_name }}
 
+      # =========================
+      # Load F&O URL safely
+      # =========================
       - name: Load F&O URL
         id: fno
         run: |
+          if [ ! -f fno-url.txt ]; then
+            echo "F&O URL file not found"
+            exit 1
+          fi
+
           FNO_URL=$(cat fno-url.txt)
           echo "fno_url=$FNO_URL" >> $GITHUB_OUTPUT
 
+      # =========================
+      # Get F&O Token (App-only auth)
+      # =========================
       - name: Get F&O Token
         id: token
         run: |
@@ -47,8 +55,16 @@ jobs:
             -d "scope=https://*.operations.dynamics.com/.default" \
             -d "grant_type=client_credentials" | jq -r .access_token)
 
+          if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
+            echo "Failed to acquire F&O token"
+            exit 1
+          fi
+
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
+      # =========================
+      # Create F&O User
+      # =========================
       - name: Create F&O User
         run: |
           curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SystemUsers" \
@@ -60,6 +76,9 @@ jobs:
               "Enabled": true
             }'
 
+      # =========================
+      # Assign System Administrator Role
+      # =========================
       - name: Assign System Admin Role
         run: |
           curl -X POST "${{ steps.fno.outputs.fno_url }}/data/SecurityUserRoles" \
@@ -69,3 +88,15 @@ jobs:
               "UserId": "${{ github.event.inputs.user_email }}",
               "SecurityRoleIdentifier": "System administrator"
             }'
+
+      # =========================
+      # Summary
+      # =========================
+      - name: Summary
+        run: |
+          echo "===================================="
+          echo "F&O ACCESS ASSIGNED SUCCESSFULLY"
+          echo "Environment: ${{ github.event.inputs.environment_name }}"
+          echo "User: ${{ github.event.inputs.user_email }}"
+          echo "F&O URL: ${{ steps.fno.outputs.fno_url }}"
+          echo "===================================="

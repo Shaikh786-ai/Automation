@@ -23,7 +23,7 @@ on:
           - Sandbox
           - Production
           - Trial
-          - Developer   # ✅ NEW
+          - Developer
 
       region:
         description: "Dataverse region"
@@ -82,7 +82,7 @@ permissions:
 
 jobs:
   create-ude:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest   # ✅ FIXED
 
     steps:
 
@@ -111,7 +111,6 @@ jobs:
           domain-name: ${{ github.event.inputs.domain_name }}
           templates: ${{ github.event.inputs.templates }}
 
-          # Dataverse toggle (mapped to true/false)
           provision-database: ${{ github.event.inputs.enable_dataverse == 'Yes' }}
 
           max-async-wait-time: 14400
@@ -126,7 +125,7 @@ jobs:
             --tenant ${{ secrets.PP_TENANT_ID }}
 
       # =========================
-      # Wait for Environment Ready
+      # Wait for environment ready
       # =========================
       - name: Wait for environment readiness
         run: |

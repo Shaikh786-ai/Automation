@@ -82,7 +82,7 @@ permissions:
 
 jobs:
   create-ude:
-    runs-on: ubuntu-latest   # ✅ FIXED
+    runs-on: ubuntu-latest
 
     steps:
 
@@ -113,7 +113,8 @@ jobs:
 
           provision-database: ${{ github.event.inputs.enable_dataverse == 'Yes' }}
 
-          max-async-wait-time: 14400
+          # ✅ UPDATED ASYNC WAIT TIME
+          max-async-wait-time: 1800
 
       # =========================
       # Authenticate PAC CLI

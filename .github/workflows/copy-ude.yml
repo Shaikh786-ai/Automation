@@ -1,8 +1,12 @@
+#Workflow metadata - Defines the workflow name and enables manual execution from GitHub Actions.
+
 name: Copy Dataverse DB (URL choice based, OIDC)
 
 on:
   workflow_dispatch:
     inputs:
+
+    #Source Environment Input - Allows the user to select the source Dataverse environment URL.
       source_env_url:
         description: "Select Source Environment"
         required: true
@@ -11,6 +15,7 @@ on:
           - https://ude-finops-ges.crm.dynamics.com/
           - https://ude-finops-demo-ges.crm.dynamics.com/
 
+    #Target Environment Input - Allows the user to select the target Dataverse environment URL.
       target_env_url:
         description: "Select Target Environment"
         required: true
@@ -19,6 +24,7 @@ on:
           - https://ude-finops-demo-ges.crm.dynamics.com/
           - https://ude-finops-ges.crm.dynamics.com/
 
+    #Copy Type Input - Defines whether the database copy should be full or minimal.
       copy_type:
         description: "Copy Type"
         required: true
@@ -28,28 +34,32 @@ on:
           - FullCopy
           - MinimalCopy
 
+    #Wait Time Input - Specifies the maximum wait time for the asynchronous database copy operation.
       wait_minutes:
         description: "Max async wait time (minutes)"
         required: true
         default: "240"
         type: string
 
+#Workflow Permissions - Grants GitHub OIDC authentication and repository read permissions.
 permissions:
   id-token: write
   contents: read
 
+#Job Definition - Defines the database copy job and the Ubuntu runner environment.
 jobs:
   copy-db:
     runs-on: ubuntu-latest
 
+#Checkout Repository - Downloads repository files into the GitHub Actions runner.
     steps:
       - uses: actions/checkout@v4
 
-      # Install PAC CLI
+      # Install PAC CLI - Installs Microsoft Power Platform CLI tools required for PAC commands.
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Ensure PAC CLI exists
+      # Ensure PAC CLI exists - Checks whether PAC CLI exists and installs it if missing.
       - name: Ensure PAC CLI
         shell: bash
         run: |
@@ -60,7 +70,7 @@ jobs:
           fi
           pac help >/dev/null
 
-      # OIDC Authentication
+      # OIDC Authentication - Authenticates PAC CLI using GitHub OIDC federated credentials without secrets.
       - name: PAC auth (OIDC)
         shell: bash
         run: |
@@ -74,11 +84,11 @@ jobs:
           echo "✅ Authenticated"
           pac auth who
 
-      # Validate environments
+      # Validate environments - Verifies access to available Power Platform environments.
       - name: Validate environment access
         run: pac org list
 
-      # 🚀 Copy Dataverse database
+      # 🚀 Copy Dataverse database - Resolves environment IDs and performs the Dataverse database copy operation.
       - name: Copy Dataverse database
         shell: bash
         run: |
@@ -124,5 +134,6 @@ jobs:
             --async false \
             --max-async-wait-time "$WAIT_MINUTES"
 
+#Completion Message - Displays a success message after the database copy completes.
       - name: Done
         run: echo "✅ Database copy completed."

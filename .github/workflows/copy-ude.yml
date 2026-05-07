@@ -8,16 +8,16 @@ on:
         required: true
         type: choice
         options:
-          - https://myude2.crm.dynamics.com/
-          - https://myude3.crm.dynamics.com/
+          - https://ude-finops-ges.crm.dynamics.com/
+          - https://ude-finops-demo-ges.crm.dynamics.com/
 
       target_env_url:
         description: "Select Target Environment"
         required: true
         type: choice
         options:
-          - https://myude6.crm.dynamics.com/
-          - https://myude3.crm.dynamics.com/
+          - https://ude-finops-demo-ges.crm.dynamics.com/
+          - https://ude-finops-ges.crm.dynamics.com/
 
       copy_type:
         description: "Copy Type"

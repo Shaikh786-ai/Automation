@@ -1,7 +1,10 @@
+#Workflow metadata - Defines the workflow name and how it is triggered manually.
 name: Create UDE Environment
 
 on:
   workflow_dispatch:
+  
+  #User Inputs - Defines all parameters users must provide while running the workflow manually.
     inputs:
 
       environment_name:
@@ -75,28 +78,30 @@ on:
         options:
           - "Yes"
           - "No"
-
+          
+#Workflow Permission - Grants required GitHub permissions for authentication and repository access.
 permissions:
   id-token: write
   contents: read
 
+#Job Definition - Defines the main job and the runner machine used to execute it.
 jobs:
   create-ude:
     runs-on: ubuntu-latest
     # runs-on: self-hosted
 
     steps:
-
+#Checkout Repository - Downloads the repository code into the workflow runner.
       - uses: actions/checkout@v4
 
       # =========================
-      # Install Power Platform CLI
+      # Install Power Platform CLI - Installs Microsoft Power Platform CLI tools required for environment operations.
       # =========================
       - name: Install Power Platform CLI
         uses: microsoft/powerplatform-actions/actions-install@v1.9.1
 
       # =========================
-      # Create Environment
+      # Create Environment - Creates the Power Platform environment using provided workflow inputs.
       # =========================
       - name: Create UDE environment
         uses: microsoft/powerplatform-actions/create-environment@v1.9.1
@@ -118,7 +123,7 @@ jobs:
           max-async-wait-time: 1800
 
       # =========================
-      # Authenticate PAC CLI
+      # Authenticate PAC CLI - Authenticates the PAC CLI using Azure AD application credentials.
       # =========================
       - name: Authenticate PAC
         run: |
@@ -127,7 +132,7 @@ jobs:
             --tenant ${{ secrets.PP_TENANT_ID }}
 
       # =========================
-      # Wait for environment ready
+      # Wait for environment ready - Continuously checks until the newly created environment reaches READY state.
       # =========================
       - name: Wait for environment readiness
         run: |
@@ -152,7 +157,7 @@ jobs:
           exit 1
 
       # =========================
-      # Summary
+      # Summary - Displays a success summary with environment details after completion.
       # =========================
       - name: Summary
         run: |

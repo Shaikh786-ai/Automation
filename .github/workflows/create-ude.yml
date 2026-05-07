@@ -82,8 +82,8 @@ permissions:
 
 jobs:
   create-ude:
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
 
     steps:
 

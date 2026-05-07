@@ -1,31 +1,40 @@
+#Workflow metadata - Defines the workflow name and trigger conditions for manual execution and branch push events.
+
 name: Delete UDE (OIDC, no secrets)
 
 on:
   workflow_dispatch:
+
+  #User Inputs - Accepts the Power Platform Environment ID required for deletion.
     inputs:
       environment_id:
         description: "Enter Power Platform Environment ID (GUID)"
         required: true
         type: string
 
+#Push Trigger - Automatically runs the workflow when code is pushed to the specified branch.
   push:
     branches:
       - My_Automation
 
+#Workflow Permissions - Grants permissions required for GitHub OIDC authentication and repository access.
 permissions:
   id-token: write   # required for GitHub OIDC
   contents: read
 
+#Job Definition - Defines the deletion job and specifies the Ubuntu runner environment.
 jobs:
   delete-ude:
     runs-on: ubuntu-latest
     steps:
+
+    #Checkout Repository - Downloads the repository contents into the GitHub Actions runner.
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions
+      # Install PAC CLI wrapper actions - Installs Microsoft Power Platform PAC CLI wrapper actions.
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Delete environment using federated credentials (no client secret)
+      # Delete environment using federated credentials (no client secret) - Deletes the specified Power Platform environment using OIDC authentication without client secrets.
       - name: Delete UDE environment
         uses: microsoft/powerplatform-actions/delete-environment@v1
         with:

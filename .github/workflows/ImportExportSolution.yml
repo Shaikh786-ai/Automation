@@ -1,7 +1,11 @@
+#Workflow metadata - Defines the workflow name and enables manual execution from GitHub Actions.
+
 name: Import Export Solution
 
 on:
   workflow_dispatch:
+
+  #Workflow Inputs - Collects source environment, target environment, and solution details from the user.
     inputs:
       source_environment_url:
         description: "Source Environment URL (Export)"
@@ -15,6 +19,7 @@ on:
         description: "Solution Name"
         required: true
 
+#Workflow Permissions - Grants permissions required for authentication and repository access.
 permissions:
   id-token: write
   contents: read
@@ -22,21 +27,24 @@ permissions:
 jobs:
 
 # ================= BUILD (EXPORT) =================
+  #Build Job Definition - Defines the export job and uses a Windows runner.
   build:
     runs-on: windows-latest
 
     steps:
-
+#Checkout Repository - Downloads repository files into the workflow runner.
     - name: Checkout code
       uses: actions/checkout@v4
 
+#Install Power platform CLI - Installs the Microsoft Power Platform CLI tool.
     - name: Install Power Platform CLI
       run: dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
+#Add PAC CLI to path - Adds the PAC CLI installation directory to the system PATH.
     - name: Add PAC to PATH
       run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
-    # ✅ AUTH TO SOURCE ENV
+    #AUTH TO SOURCE ENV - Authenticates against the source Power Platform environment for exporting solutions.
     - name: Authenticate to Source Environment
       run: |
         pac auth create `
@@ -45,9 +53,11 @@ jobs:
           --clientSecret ${{ secrets.PP_CLIENT_SECRET }} `
           --tenant ${{ secrets.PP_TENANT_ID }}
 
+#Publish Customizations - Publishes all pending customizations before exporting the solution.
     - name: Publish Customizations
       run: pac solution publish
 
+#Export Solution - Exports the specified unmanaged solution into a ZIP package.
     - name: Export Solution
       run: |
         pac solution export `
@@ -55,6 +65,7 @@ jobs:
           --path ./solution.zip `
           --managed false
 
+#Upload Artifacts - Uploads the exported solution package for use in later jobs.
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
@@ -63,24 +74,28 @@ jobs:
 
 
 # ================= DEPLOY (IMPORT) =================
+  #Deploy Job Definition - Defines the deployment job and makes it dependent on the build job.
   deploy:
     runs-on: windows-latest
     needs: build
 
     steps:
 
+#Download artifact - Downloads the exported solution package from the build job.
     - name: Download Artifact
       uses: actions/download-artifact@v4
       with:
         name: solution
 
+#Install Power Platform CLI - Installs the Microsoft Power Platform CLI tool for deployment operations.
     - name: Install Power Platform CLI
       run: dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
     - name: Add PAC to PATH
       run: echo "$env:USERPROFILE\.dotnet\tools" >> $env:GITHUB_PATH
 
-    # ✅ AUTH TO TARGET ENV
+    #AUTH TO TARGET ENV - Adds the PAC CLI installation directory to the system PATH.
+    #Authenticates against the target Power Platform environment for importing solutions.
     - name: Authenticate to Target Environment
       run: |
         pac auth create `
@@ -89,6 +104,7 @@ jobs:
           --clientSecret ${{ secrets.PP_CLIENT_SECRET }} `
           --tenant ${{ secrets.PP_TENANT_ID }}
 
+#Import Solution - Imports the solution package into the target environment as a managed solution.
     - name: Import Solution
       run: |
         pac solution import `

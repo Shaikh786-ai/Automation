@@ -13,7 +13,7 @@ on:
         type: choice
         options:
           - https://ude-finops-ges.crm.dynamics.com/
-          - https://ude-finops-demo-ges.crm.dynamics.com/
+          - https://ude-finops-us-ges.crm.dynamics.com/
 
     #Target Environment Input - Allows the user to select the target Dataverse environment URL.
       target_env_url:
@@ -21,7 +21,7 @@ on:
         required: true
         type: choice
         options:
-          - https://ude-finops-demo-ges.crm.dynamics.com/
+          - https://ude-finops-us-ges.crm.dynamics.com/
           - https://ude-finops-ges.crm.dynamics.com/
 
     #Copy Type Input - Defines whether the database copy should be full or minimal.

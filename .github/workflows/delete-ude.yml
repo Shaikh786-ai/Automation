@@ -1,10 +1,10 @@
-name: Delete UDE (OIDC, no secrets)
+name: Delete UDE by Environment Name (OIDC, no secrets)
 
 on:
   workflow_dispatch:
     inputs:
-      environment_id:
-        description: "Enter Power Platform Environment ID"
+      environment_name:
+        description: "Enter Power Platform Environment Name"
         required: true
         type: string
 
@@ -21,29 +21,79 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Optional: Install PAC CLI only for visibility/debugging
-      # Not required for delete-environment action itself
-      - name: Install PAC CLI
-        run: |
-          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+      # Install Power Platform tools/action dependencies
+      - name: Install Power Platform Tools
+        uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Optional: Verify PAC CLI installation
+      # Verify PAC CLI
       - name: Verify PAC CLI
-        run: pac help
-
-      # Validate workflow input
-      - name: Validate Environment ID input
         shell: bash
         run: |
-          ENV_ID="${{ github.event.inputs.environment_id }}"
+          pac help
 
-          if [ -z "$ENV_ID" ]; then
-            echo "Environment ID is required."
+      # Authenticate PAC CLI using GitHub OIDC Federation (no client secret)
+      - name: Authenticate PAC CLI with GitHub Federated Identity
+        shell: bash
+        run: |
+          pac auth create \
+            --githubFederated \
+            --applicationId "${{ secrets.CLIENT_ID }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --cloud Public
+
+          echo "Active PAC auth profiles:"
+          pac auth list
+
+      # Resolve Environment ID from environment name
+      - name: Resolve Environment ID
+        id: resolve-env
+        shell: bash
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
+          echo "Searching for environment name: $ENV_NAME"
+
+          pac admin list --name "$ENV_NAME" --json > envs.json
+
+          echo "Raw environment list response:"
+          cat envs.json
+
+          ENV_ID=$(jq -r '
+            (.value // .)[]?
+            | select(
+                (
+                  (.DisplayName // .displayName // .name // .properties.displayName // "")
+                ) == "'"$ENV_NAME"'"
+              )
+            | (.EnvironmentId // .environmentId // .id // empty)
+          ' envs.json | head -n 1)
+
+          if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
+            echo "Exact match not found. Trying case-insensitive match..."
+
+            ENV_ID=$(jq -r '
+              (.value // .)[]?
+              | select(
+                  (
+                    (.DisplayName // .displayName // .name // .properties.displayName // "")
+                    | ascii_downcase
+                  ) == "'"$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')"'"
+                )
+              | (.EnvironmentId // .environmentId // .id // empty)
+            ' envs.json | head -n 1)
+          fi
+
+          if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
+            echo "Environment not found for name: $ENV_NAME"
+            echo "Available matching entries:"
+            jq -r '
+              (.value // .)[]?
+              | (.DisplayName // .displayName // .name // .properties.displayName // "UNKNOWN")
+            ' envs.json
             exit 1
           fi
 
-          echo "Environment ID received: $ENV_ID"
+          echo "Resolved Environment ID: $ENV_ID"
+          echo "environment_id=$ENV_ID" >> "$GITHUB_OUTPUT"
 
       # Delete Environment
       - name: Delete UDE environment
@@ -51,5 +101,5 @@ jobs:
         with:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
-          environment: ${{ github.event.inputs.environment_id }}
+          environment: ${{ steps.resolve-env.outputs.environment_id }}
           cloud: Public

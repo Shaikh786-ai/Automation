@@ -27,9 +27,9 @@ jobs:
 
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      # Verify PAC installation
+        # Verify PAC installation
       - name: Verify PAC CLI
-        run: pac --version
+        run: pac
 
       # Authenticate using GitHub OIDC
       - name: Authenticate PAC CLI

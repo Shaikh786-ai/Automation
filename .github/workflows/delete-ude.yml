@@ -21,10 +21,10 @@ jobs:
       # Checkout repository
       - uses: actions/checkout@v4
 
-      # IMPORTANT: Install Power Platform Actions + PAC runtime
+      # Install Power Platform Actions (includes PAC runtime)
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Resolve Environment ID from Environment Name
+      # Resolve Environment ID from Name
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -32,6 +32,9 @@ jobs:
           ENV_NAME="${{ github.event.inputs.environment_name }}"
 
           echo "Searching for environment: $ENV_NAME"
+
+          # IMPORTANT FIX: ensure PAC is available in PATH
+          export PATH="$POWERPLATFORMTOOLS_PACPATH:$PATH"
 
           pac admin list --json > envs.json
           cat envs.json
@@ -54,7 +57,7 @@ jobs:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # correct input (replaces environment-id)
+          # correct input (replaces deprecated environment-id)
           environment: ${{ steps.resolve-env.outputs.environment_id }}
 
           cloud: Public

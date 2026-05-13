@@ -8,10 +8,6 @@ on:
         required: true
         type: string
 
-  push:
-    branches:
-      - My_Automation
-
 permissions:
   id-token: write
   contents: read
@@ -24,25 +20,36 @@ jobs:
       # Checkout Repository
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions
-      - uses: microsoft/powerplatform-actions/actions-install@v1
+      # Install Power Platform CLI
+      - name: Install Power Platform CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
 
-      # Resolve Environment ID from Environment Name
-      - name: Resolve Environment ID
-        id: resolve-env
-        shell: bash
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # Verify PAC installation
+      - name: Verify PAC CLI
+        run: pac --version
+
+      # Authenticate using GitHub OIDC
+      - name: Authenticate PAC CLI
         env:
           PP_TOOLS_APP_ID: ${{ secrets.CLIENT_ID }}
           PP_TOOLS_TENANT_ID: ${{ secrets.PP_TENANT_ID }}
         run: |
-          ENV_NAME="${{ github.event.inputs.environment_name }}"
-
-          echo "Searching for environment: $ENV_NAME"
-
           pac auth create \
             --applicationId "$PP_TOOLS_APP_ID" \
             --tenant "$PP_TOOLS_TENANT_ID" \
             --githubFederated
+
+      # Resolve Environment ID
+      - name: Resolve Environment ID
+        id: resolve-env
+        shell: bash
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
+
+          echo "Searching for environment: $ENV_NAME"
 
           ENV_ID=$(pac admin list --json | jq -r \
             ".[] | select(.displayName == \"$ENV_NAME\") | .environmentId" | head -n 1)

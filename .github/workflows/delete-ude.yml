@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       # Checkout Repository
       - uses: actions/checkout@v4
 
@@ -27,9 +28,9 @@ jobs:
 
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-        # Verify PAC installation
+      # Verify PAC CLI
       - name: Verify PAC CLI
-        run: pac
+        run: pac help
 
       # Authenticate using GitHub OIDC
       - name: Authenticate PAC CLI
@@ -42,7 +43,7 @@ jobs:
             --tenant "$PP_TOOLS_TENANT_ID" \
             --githubFederated
 
-      # Resolve Environment ID
+      # Resolve Environment ID from Environment Name
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -51,8 +52,16 @@ jobs:
 
           echo "Searching for environment: $ENV_NAME"
 
-          ENV_ID=$(pac admin list --json | jq -r \
-            ".[] | select(.displayName == \"$ENV_NAME\") | .environmentId" | head -n 1)
+          echo "===== ENVIRONMENT LIST ====="
+
+          pac admin list --json > envs.json
+
+          cat envs.json
+
+          echo "============================"
+
+          ENV_ID=$(jq -r \
+            ".[] | select(.DisplayName == \"$ENV_NAME\") | .EnvironmentId" envs.json | head -n 1)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
             echo "Environment not found!"

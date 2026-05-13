@@ -21,7 +21,7 @@ jobs:
       # Checkout repository
       - uses: actions/checkout@v4
 
-      # Install PAC CLI (reliable method)
+      # Install PAC CLI (reliable)
       - name: Install PAC CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
@@ -31,7 +31,7 @@ jobs:
       - name: Verify PAC CLI
         run: pac help
 
-      # Resolve Environment ID from Name (ROBUST FIX)
+      # Resolve Environment ID (FULLY ROBUST FIX)
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -43,18 +43,32 @@ jobs:
           pac admin list --json > envs.json
           cat envs.json
 
-          # FIX: handles both array and {value:[]} formats
+          # Handles ALL PAC structures (flat + nested)
           ENV_ID=$(jq -r '
             (.value // .)[] 
-            | select((.DisplayName // .displayName // .name) == "'"$ENV_NAME"'") 
-            | (.EnvironmentId // .environmentId // .id)
+            | select(
+                (
+                  .DisplayName // 
+                  .displayName // 
+                  .name // 
+                  .properties.displayName
+                ) == "'"$ENV_NAME"'"
+              )
+            | (
+                .EnvironmentId // 
+                .environmentId // 
+                .id
+              )
           ' envs.json | head -n 1)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
             echo "Environment not found!"
 
-            echo "Available environments are:"
-            jq -r '(.value // .)[] | (.DisplayName // .displayName // .name)' envs.json
+            echo "Available environments (debug list):"
+            jq -r '
+              (.value // .)[] 
+              | (.DisplayName // .displayName // .name // .properties.displayName)
+            ' envs.json
 
             exit 1
           fi

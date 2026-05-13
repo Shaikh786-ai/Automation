@@ -20,12 +20,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Install PAC CLI and add it to PATH for later shell steps
-      - name: Install Power Platform Tools
-        uses: microsoft/powerplatform-actions/actions-install@v1
-        with:
-          add-tools-to-path: true
+      # Install PAC CLI
+      - name: Install PAC CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
+      # Verify PAC CLI
       - name: Verify PAC CLI
         shell: bash
         run: |
@@ -33,7 +34,8 @@ jobs:
           which pac
           pac help
 
-      - name: Authenticate PAC CLI with GitHub Federated Identity
+      # Authenticate PAC CLI using GitHub Federated Identity (OIDC, no secrets)
+      - name: Authenticate PAC CLI
         shell: bash
         run: |
           pac auth create \
@@ -45,6 +47,7 @@ jobs:
           echo "Active PAC auth profiles:"
           pac auth list
 
+      # Resolve Environment ID from Environment Name
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -60,7 +63,7 @@ jobs:
           cat envs.json
 
           ENV_ID=$(jq -r '
-            (.value // .)[]?
+            .[]?
             | select(
                 (
                   (.DisplayName // .displayName // .name // .properties.displayName // "")
@@ -74,7 +77,7 @@ jobs:
             echo "Environment not found: $ENV_NAME"
             echo "Returned environments:"
             jq -r '
-              (.value // .)[]?
+              .[]?
               | (.DisplayName // .displayName // .name // .properties.displayName // "UNKNOWN")
             ' envs.json
             exit 1
@@ -83,6 +86,7 @@ jobs:
           echo "Resolved Environment ID: $ENV_ID"
           echo "environment_id=$ENV_ID" >> "$GITHUB_OUTPUT"
 
+      # Delete Environment
       - name: Delete UDE environment using PAC CLI
         shell: bash
         run: |

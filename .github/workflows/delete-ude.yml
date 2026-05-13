@@ -18,21 +18,20 @@ jobs:
 
     steps:
 
-      # Checkout Repository
+      # Checkout repository
       - uses: actions/checkout@v4
 
       # Install Power Platform CLI
       - name: Install Power Platform CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       # Verify PAC CLI
       - name: Verify PAC CLI
         run: pac help
 
-      # Authenticate using GitHub OIDC
+      # Authenticate PAC CLI using OIDC
       - name: Authenticate PAC CLI
         env:
           PP_TOOLS_APP_ID: ${{ secrets.CLIENT_ID }}
@@ -43,7 +42,7 @@ jobs:
             --tenant "$PP_TOOLS_TENANT_ID" \
             --githubFederated
 
-      # Resolve Environment ID from Environment Name
+      # Resolve Environment ID from Name
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -52,13 +51,8 @@ jobs:
 
           echo "Searching for environment: $ENV_NAME"
 
-          echo "===== ENVIRONMENT LIST ====="
-
           pac admin list --json > envs.json
-
           cat envs.json
-
-          echo "============================"
 
           ENV_ID=$(jq -r \
             ".[] | select(.DisplayName == \"$ENV_NAME\") | .EnvironmentId" envs.json | head -n 1)
@@ -69,16 +63,14 @@ jobs:
           fi
 
           echo "Resolved Environment ID: $ENV_ID"
-
           echo "environment_id=$ENV_ID" >> $GITHUB_OUTPUT
 
-      # Delete Environment
+      # Delete Environment (UPDATED FIX)
       - name: Delete UDE environment
         uses: microsoft/powerplatform-actions/delete-environment@v1
         with:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
-          environment-id: ${{ steps.resolve-env.outputs.environment_id }}
-          force: true
-          wait-for-completion: true
-          max-async-wait-time: 90
+
+          # NEW REQUIRED INPUT (replaces environment-id)
+          environment: ${{ steps.resolve-env.outputs.environment_id }}

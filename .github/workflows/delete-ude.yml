@@ -21,17 +21,17 @@ jobs:
       # Checkout repository
       - uses: actions/checkout@v4
 
-      # INSTALL REAL PAC CLI (FIX)
+      # Install PAC CLI (reliable method)
       - name: Install PAC CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      # Verify
-      - name: Verify PAC
+      # Verify PAC
+      - name: Verify PAC CLI
         run: pac help
 
-      # Resolve Environment ID
+      # Resolve Environment ID from Name (ROBUST FIX)
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -44,10 +44,14 @@ jobs:
           cat envs.json
 
           ENV_ID=$(jq -r \
-            ".[] | select(.DisplayName == \"$ENV_NAME\") | .EnvironmentId" envs.json | head -n 1)
+            ".[] 
+            | select((.DisplayName // .displayName // .name) == \"$ENV_NAME\") 
+            | (.EnvironmentId // .environmentId // .id)" \
+            envs.json | head -n 1)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
             echo "Environment not found!"
+            echo "Check envs.json output above for available values"
             exit 1
           fi
 
@@ -60,5 +64,8 @@ jobs:
         with:
           app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
+
+          # correct input (replaces deprecated environment-id)
           environment: ${{ steps.resolve-env.outputs.environment_id }}
+
           cloud: Public

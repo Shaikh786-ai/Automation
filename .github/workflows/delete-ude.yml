@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: "Enter Power Platform Environment Name (friendly name)"
+        description: "Enter Power Platform Environment Name"
         required: true
         type: string
 
@@ -31,26 +31,25 @@ jobs:
       - name: Verify PAC CLI
         run: pac help
 
-      # Resolve Environment ID (FUZZY MATCH FIX)
+      # Resolve Environment ID (STABLE VERSION)
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
         run: |
           ENV_NAME="${{ github.event.inputs.environment_name }}"
+          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
 
           echo "Searching for environment: $ENV_NAME"
 
           pac admin list --json > envs.json
           cat envs.json
 
-          # Convert input to lowercase for comparison
-          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
-
+          # SIMPLE + RELIABLE MATCH (no guessing structure)
           ENV_ID=$(jq -r '
             (.value // .)[]
             | select(
                 (
-                  (.DisplayName // .displayName // .name // .properties.displayName)
+                  (.DisplayName // .displayName // .name // .properties.displayName // "")
                   | ascii_downcase
                 )
                 | contains("'"$ENV_NAME_LC"'")
@@ -64,7 +63,7 @@ jobs:
             echo "Available environments:"
             jq -r '
               (.value // .)[]
-              | (.DisplayName // .displayName // .name // .properties.displayName)
+              | (.DisplayName // .displayName // .name // .properties.displayName // "UNKNOWN")
             ' envs.json
 
             exit 1

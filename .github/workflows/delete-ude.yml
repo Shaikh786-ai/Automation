@@ -1,48 +1,74 @@
-#Workflow metadata - Defines the workflow name and trigger conditions for manual execution and branch push events.
+# Workflow metadata - Defines the workflow name and trigger conditions
 
 name: Delete UDE (OIDC, no secrets)
 
 on:
   workflow_dispatch:
-
-  #User Inputs - Accepts the Power Platform Environment ID required for deletion.
     inputs:
-      environment_id:
-        description: "Enter Power Platform Environment ID (GUID)"
+      environment_name:
+        description: "Enter Power Platform Environment Name"
         required: true
         type: string
 
-#Push Trigger - Automatically runs the workflow when code is pushed to the specified branch.
+  # Push Trigger - Automatically runs the workflow when code is pushed
   push:
     branches:
       - My_Automation
 
-#Workflow Permissions - Grants permissions required for GitHub OIDC authentication and repository access.
+# Workflow Permissions
 permissions:
-  id-token: write   # required for GitHub OIDC
+  id-token: write
   contents: read
 
-#Job Definition - Defines the deletion job and specifies the Ubuntu runner environment.
 jobs:
   delete-ude:
     runs-on: ubuntu-latest
+
     steps:
 
-    #Checkout Repository - Downloads the repository contents into the GitHub Actions runner.
+      # Checkout Repository
       - uses: actions/checkout@v4
 
-      # Install PAC CLI wrapper actions - Installs Microsoft Power Platform PAC CLI wrapper actions.
+      # Install PAC CLI wrapper actions
       - uses: microsoft/powerplatform-actions/actions-install@v1
 
-      # Delete environment using federated credentials (no client secret) - Deletes the specified Power Platform environment using OIDC authentication without client secrets.
+      # Authenticate using OIDC
+      - name: Authenticate with Power Platform
+        uses: microsoft/powerplatform-actions/authenticate@v1
+        with:
+          app-id: ${{ secrets.CLIENT_ID }}
+          tenant-id: ${{ secrets.PP_TENANT_ID }}
+
+      # Get Environment ID from Environment Name
+      - name: Resolve Environment ID
+        id: resolve-env
+        shell: bash
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
+
+          echo "Searching for environment: $ENV_NAME"
+
+          ENV_ID=$(pac admin list \
+            --json | jq -r \
+            ".[] | select(.displayName == \"$ENV_NAME\") | .environmentId" | head -n 1)
+
+          if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
+            echo "Environment not found!"
+            exit 1
+          fi
+
+          echo "Resolved Environment ID: $ENV_ID"
+
+          echo "environment_id=$ENV_ID" >> $GITHUB_OUTPUT
+
+      # Delete environment using resolved Environment ID
       - name: Delete UDE environment
         uses: microsoft/powerplatform-actions/delete-environment@v1
         with:
-          app-id:    ${{ secrets.CLIENT_ID }}
+          app-id: ${{ secrets.CLIENT_ID }}
           tenant-id: ${{ secrets.PP_TENANT_ID }}
 
-          # Take environment ID from user input instead of hardcoding
-          environment-id: ${{ github.event.inputs.environment_id }}
+          environment-id: ${{ steps.resolve-env.outputs.environment_id }}
 
           force: true
           wait-for-completion: true

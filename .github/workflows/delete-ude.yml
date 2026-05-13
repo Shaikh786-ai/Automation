@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: "Enter Power Platform Environment Name"
+        description: "Enter Power Platform Environment Name (friendly name)"
         required: true
         type: string
 
@@ -21,7 +21,7 @@ jobs:
       # Checkout repository
       - uses: actions/checkout@v4
 
-      # Install PAC CLI (reliable)
+      # Install PAC CLI
       - name: Install PAC CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
@@ -31,7 +31,7 @@ jobs:
       - name: Verify PAC CLI
         run: pac help
 
-      # Resolve Environment ID (FULLY ROBUST FIX)
+      # Resolve Environment ID (FUZZY MATCH FIX)
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
@@ -43,30 +43,27 @@ jobs:
           pac admin list --json > envs.json
           cat envs.json
 
-          # Handles ALL PAC structures (flat + nested)
+          # Convert input to lowercase for comparison
+          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
+
           ENV_ID=$(jq -r '
-            (.value // .)[] 
+            (.value // .)[]
             | select(
                 (
-                  .DisplayName // 
-                  .displayName // 
-                  .name // 
-                  .properties.displayName
-                ) == "'"$ENV_NAME"'"
+                  (.DisplayName // .displayName // .name // .properties.displayName)
+                  | ascii_downcase
+                )
+                | contains("'"$ENV_NAME_LC"'")
               )
-            | (
-                .EnvironmentId // 
-                .environmentId // 
-                .id
-              )
+            | (.EnvironmentId // .environmentId // .id)
           ' envs.json | head -n 1)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
             echo "Environment not found!"
 
-            echo "Available environments (debug list):"
+            echo "Available environments:"
             jq -r '
-              (.value // .)[] 
+              (.value // .)[]
               | (.DisplayName // .displayName // .name // .properties.displayName)
             ' envs.json
 

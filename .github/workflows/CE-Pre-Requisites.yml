@@ -1,0 +1,98 @@
+name: Install CE Prerequisites
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: "Enter Power Platform Environment Name"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  install-applications:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # Checkout repo
+      - uses: actions/checkout@v4
+
+      # Install PAC CLI
+      - name: Install PAC CLI
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # Verify PAC
+      - name: Verify PAC
+        run: pac help
+
+      # Authenticate using OIDC
+      - name: Authenticate PAC
+        run: |
+          pac auth create \
+            --applicationId "${{ secrets.CLIENT_ID }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --githubFederated
+
+      # Resolve Environment ID
+      - name: Resolve Environment ID
+        id: resolve-env
+        shell: bash
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
+          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
+
+          pac admin list --json > envs.json
+
+          ENV_ID=$(jq -r '
+            (.value // .)[]
+            | select(
+                (
+                  (.DisplayName // .displayName // .name // .properties.displayName // "")
+                  | ascii_downcase
+                )
+                | contains("'"$ENV_NAME_LC"'")
+              )
+            | (.EnvironmentId // .environmentId // .id)
+          ' envs.json | head -n 1)
+
+          if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
+            echo "Environment not found!"
+            exit 1
+          fi
+
+          echo "Resolved Environment ID: $ENV_ID"
+
+          echo "environment_id=$ENV_ID" >> $GITHUB_OUTPUT
+
+      # Install Applications from JSON
+      - name: Install CE Applications
+        shell: bash
+        run: |
+
+          ENV_ID="${{ steps.resolve-env.outputs.environment_id }}"
+
+          echo "Installing applications into environment: $ENV_ID"
+
+          jq -c '.[]' config/ce-prerequisites.json | while read app
+          do
+            FRIENDLY_NAME=$(echo $app | jq -r '.friendlyName')
+            APPLICATION_ID=$(echo $app | jq -r '.applicationId')
+            UNIQUE_NAME=$(echo $app | jq -r '.uniqueName')
+
+            echo "===================================="
+            echo "Installing: $FRIENDLY_NAME"
+            echo "Application ID: $APPLICATION_ID"
+            echo "Unique Name: $UNIQUE_NAME"
+            echo "===================================="
+
+            pac application install \
+              --environment "$ENV_ID" \
+              --application-id "$APPLICATION_ID"
+
+          done

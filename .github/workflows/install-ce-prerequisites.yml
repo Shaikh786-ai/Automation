@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       environment_name:
-        description: "Enter Power Platform Environment Name"
+        description: Enter Power Platform Environment Name
         required: true
-        type: string
 
 permissions:
   id-token: write
@@ -17,57 +16,77 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # Checkout repository
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # Debug repository files
       - name: Debug Repository Files
         run: |
           echo "Current directory:"
           pwd
-          echo "Files:"
+
+          echo "Repository files:"
           ls -R
 
+      # Install jq
       - name: Install jq
         run: |
           sudo apt-get update
           sudo apt-get install -y jq
 
+      # Install Power Platform CLI
       - name: Install PAC CLI
         run: |
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      # Verify PAC installation
       - name: Verify PAC CLI
-        run: pac help
+        run: |
+          pac help
 
-      - name: Authenticate PAC using GitHub Federated Credentials
+      # Authenticate using GitHub Federated Credentials
+      - name: Authenticate PAC
         run: |
           pac auth create \
             --applicationId "${{ secrets.CLIENT_ID }}" \
             --tenant "${{ secrets.PP_TENANT_ID }}" \
             --githubFederated
 
-      - name: Verify PAC Auth
-        run: pac auth list
+      # Verify authentication
+      - name: Verify PAC Authentication
+        run: |
+          pac auth list
 
+      # Resolve environment ID
       - name: Resolve Environment ID
         id: resolve-env
         shell: bash
         run: |
-          ENV_NAME="${{ inputs.environment_name }}"
+
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
           ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
 
           echo "Searching environment: $ENV_NAME"
+
           pac admin list --json > envs.json
 
+          echo "Available environments:"
+          cat envs.json
+
           ENV_ID=$(jq -r --arg envNameLc "$ENV_NAME_LC" '
-            if type == "array" then
-              .
-            elif type == "object" and has("value") then
-              .value
-            else
-              []
-            end
+            (
+              if type == "array" then
+                .
+              elif type == "object" and has("value") then
+                .value
+              else
+                []
+              end
+            )
             | map(
                 select(
                   (
@@ -87,31 +106,38 @@ jobs:
           ' envs.json)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
-            echo "ERROR: Environment not found for name: $ENV_NAME"
+            echo "ERROR: Environment not found"
             exit 1
           fi
 
           echo "Resolved Environment ID: $ENV_ID"
-          echo "environment_id=$ENV_ID" >> "$GITHUB_OUTPUT"
 
+          echo "environment_id=$ENV_ID" >> $GITHUB_OUTPUT
+
+      # Validate JSON file
       - name: Validate JSON File
         shell: bash
         run: |
+
           JSON_FILE="$GITHUB_WORKSPACE/ce-prerequisites.json"
 
-          echo "Checking JSON file at: $JSON_FILE"
+          echo "Checking JSON file: $JSON_FILE"
 
           if [ ! -f "$JSON_FILE" ]; then
-            echo "ERROR: ce-prerequisites.json not found in repository root!"
+            echo "ERROR: ce-prerequisites.json not found"
+
+            echo "Repository contents:"
             ls -R
+
             exit 1
           fi
 
           jq empty "$JSON_FILE"
-          echo "JSON syntax is valid."
+
+          echo "JSON syntax is valid"
 
           if ! jq -e 'type == "array"' "$JSON_FILE" > /dev/null; then
-            echo "ERROR: JSON root must be an array."
+            echo "ERROR: JSON root must be an array"
             exit 1
           fi
 
@@ -127,7 +153,8 @@ jobs:
           ' "$JSON_FILE")
 
           if [ "$INVALID_COUNT" -gt 0 ]; then
-            echo "ERROR: One or more application entries are missing friendlyName, applicationId, or uniqueName."
+            echo "ERROR: Invalid entries found in JSON"
+
             jq '
               .[]
               | select(
@@ -136,21 +163,27 @@ jobs:
                   (.uniqueName == null or .uniqueName == "")
                 )
             ' "$JSON_FILE"
+
             exit 1
           fi
 
-          echo "JSON structure is valid."
+          echo "JSON validation successful"
 
+      # Install applications
       - name: Install CE Applications
         shell: bash
         run: |
+
           ENV_ID="${{ steps.resolve-env.outputs.environment_id }}"
           JSON_FILE="$GITHUB_WORKSPACE/ce-prerequisites.json"
-          FAILURES=0
 
           echo "Installing applications into environment: $ENV_ID"
 
-          jq -c '.[]' "$JSON_FILE" | while IFS= read -r app; do
+          FAILURES=0
+
+          while IFS= read -r app
+          do
+
             FRIENDLY_NAME=$(echo "$app" | jq -r '.friendlyName')
             APPLICATION_ID=$(echo "$app" | jq -r '.applicationId')
             UNIQUE_NAME=$(echo "$app" | jq -r '.uniqueName')
@@ -161,26 +194,28 @@ jobs:
             echo "Unique Name: $UNIQUE_NAME"
             echo "===================================="
 
-            if [ -z "$UNIQUE_NAME" ] || [ "$UNIQUE_NAME" = "null" ]; then
-              echo "FAILED: uniqueName is missing for $FRIENDLY_NAME"
+            if [ -z "$APPLICATION_ID" ] || [ "$APPLICATION_ID" = "null" ]; then
+              echo "ERROR: Application ID missing for $FRIENDLY_NAME"
               FAILURES=$((FAILURES + 1))
               continue
             fi
 
-            if pac application install \
-              --environment-id "$ENV_ID" \
-              --application-name "$UNIQUE_NAME"; then
+            pac application install \
+              --environment "$ENV_ID" \
+              --application-id "$APPLICATION_ID"
+
+            if [ $? -eq 0 ]; then
               echo "SUCCESS: $FRIENDLY_NAME installed"
             else
               echo "FAILED: $FRIENDLY_NAME"
               FAILURES=$((FAILURES + 1))
             fi
-          done
+
+          done < <(jq -c '.[]' "$JSON_FILE")
 
           if [ "$FAILURES" -gt 0 ]; then
-            echo "One or more application installations failed."
+            echo "One or more application installations failed"
             exit 1
           fi
 
-          echo "All applications processed successfully."
-``
+          echo "All applications installed successfully"

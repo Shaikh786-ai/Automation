@@ -21,7 +21,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
 
       - name: Install PAC CLI
         run: |
@@ -29,7 +31,8 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Verify PAC CLI
-        run: pac help
+        run: |
+          pac help
 
       - name: Authenticate PAC using GitHub Federated Credentials
         run: |
@@ -47,20 +50,20 @@ jobs:
 
           echo "Searching environment: $ENV_NAME"
 
-          # Filter at PAC level first
-          pac admin list --name "$ENV_NAME" --json > envs.json
+          pac admin list --json > envs.json
 
           echo "===== Raw envs.json ====="
           cat envs.json
           echo "========================="
 
           ENV_ID=$(jq -r --arg envNameLc "$ENV_NAME_LC" '
-            (
-              if type == "array" then .
-              elif type == "object" and has("value") then .value
-              else []
-              end
-            )
+            if type == "array" then
+              .
+            elif type == "object" and has("value") then
+              .value
+            else
+              []
+            end
             | map(
                 select(
                   (
@@ -80,24 +83,23 @@ jobs:
           ' envs.json)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
-            echo "Environment not found for name: $ENV_NAME"
+            echo "Environment not found!"
             exit 1
           fi
 
           echo "Resolved Environment ID: $ENV_ID"
           echo "environment_id=$ENV_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Validate JSON file
+      - name: Validate JSON File
         shell: bash
         run: |
           if [ ! -f config/ce-prerequisites.json ]; then
-            echo "ERROR: config/ce-prerequisites.json not found"
+            echo "ERROR: config/ce-prerequisites.json not found!"
             exit 1
           fi
 
-          echo "Validating JSON structure..."
           jq empty config/ce-prerequisites.json
-          echo "JSON is valid."
+          echo "JSON file is valid."
 
       - name: Install CE Applications
         shell: bash
@@ -114,9 +116,8 @@ jobs:
 
             echo "===================================="
             echo "Installing: $FRIENDLY_NAME"
-            echo "Application ID (reference only): $APPLICATION_ID"
+            echo "Application ID: $APPLICATION_ID"
             echo "Unique Name: $UNIQUE_NAME"
-            echo "Environment ID: $ENV_ID"
             echo "===================================="
 
             if [ -z "$UNIQUE_NAME" ] || [ "$UNIQUE_NAME" = "null" ]; then
@@ -143,4 +144,3 @@ jobs:
           fi
 
           echo "All applications processed successfully."
-``

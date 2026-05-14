@@ -20,6 +20,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Debug Repository Structure
+        run: |
+          echo "Current working directory:"
+          pwd
+          echo "Repository files:"
+          ls -R
+
       - name: Install jq
         run: |
           sudo apt-get update
@@ -31,8 +38,7 @@ jobs:
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Verify PAC CLI
-        run: |
-          pac help
+        run: pac help
 
       - name: Authenticate PAC using GitHub Federated Credentials
         run: |
@@ -93,23 +99,30 @@ jobs:
       - name: Validate JSON File
         shell: bash
         run: |
-          if [ ! -f config/ce-prerequisites.json ]; then
+          JSON_FILE="$GITHUB_WORKSPACE/config/ce-prerequisites.json"
+
+          echo "Checking JSON file at: $JSON_FILE"
+
+          if [ ! -f "$JSON_FILE" ]; then
             echo "ERROR: config/ce-prerequisites.json not found!"
+            echo "Available files:"
+            ls -R
             exit 1
           fi
 
-          jq empty config/ce-prerequisites.json
+          jq empty "$JSON_FILE"
           echo "JSON file is valid."
 
       - name: Install CE Applications
         shell: bash
         run: |
           ENV_ID="${{ steps.resolve-env.outputs.environment_id }}"
+          JSON_FILE="$GITHUB_WORKSPACE/config/ce-prerequisites.json"
           FAILURES=0
 
           echo "Installing applications into environment: $ENV_ID"
 
-          jq -c '.[]' config/ce-prerequisites.json | while read -r app; do
+          while IFS= read -r app; do
             FRIENDLY_NAME=$(echo "$app" | jq -r '.friendlyName')
             APPLICATION_ID=$(echo "$app" | jq -r '.applicationId')
             UNIQUE_NAME=$(echo "$app" | jq -r '.uniqueName')
@@ -122,7 +135,7 @@ jobs:
 
             if [ -z "$UNIQUE_NAME" ] || [ "$UNIQUE_NAME" = "null" ]; then
               echo "FAILED: uniqueName is missing for $FRIENDLY_NAME"
-              FAILURES=$((FAILURES+1))
+              FAILURES=$((FAILURES + 1))
               continue
             fi
 
@@ -132,11 +145,11 @@ jobs:
               echo "SUCCESS: $FRIENDLY_NAME installed"
             else
               echo "FAILED: $FRIENDLY_NAME"
-              FAILURES=$((FAILURES+1))
+              FAILURES=$((FAILURES + 1))
             fi
 
             echo ""
-          done
+          done < <(jq -c '.[]' "$JSON_FILE")
 
           if [ "$FAILURES" -gt 0 ]; then
             echo "One or more application installations failed."

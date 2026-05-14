@@ -1,0 +1,93 @@
+[
+  {
+    "ApplicationId": "6a8229b2-ac46-4670-b113-b6e94784d941",
+    "FriendlyName": "Dynamics 365 for Field Service",
+    "UniqueName": "FieldService_Anchor"
+  },
+  {
+    "ApplicationId": "efae886e-3e7f-48de-8a80-4fe9a263ad6b",
+    "FriendlyName": "Dual-write Application Core Solutions",
+    "UniqueName": "msdyn_DualWriteAppCoreAnchor"
+  },
+  {
+    "ApplicationId": "7df1a324-fbb1-4a4e-9c9a-d5d9c7c6403b",
+    "FriendlyName": "Dual-write core solution",
+    "UniqueName": "DualWriteCoreAnchor"
+  },
+  {
+    "ApplicationId": "963e8d20-5896-4c02-b196-fb36f62ad90e",
+    "FriendlyName": "Dual Write Finance and Extended Solutions",
+    "UniqueName": "msdyn_Dynamics365FinanceExtendedAnchor"
+  },
+  {
+    "ApplicationId": "0cfd9958-798a-4bc9-88bf-af797ff30326",
+    "FriendlyName": "Dynamics 365 HR Common Tables",
+    "UniqueName": "HCMCommonAnchor"
+  },
+  {
+    "ApplicationId": "b40ad077-54f0-44f5-9891-e9575daca12f",
+    "FriendlyName": "Dual-write Dynamics 365 Human Resources",
+    "UniqueName": "msdyn_Dynamics365HCMAnchor"
+  },
+  {
+    "ApplicationId": "7810afcb-8b5e-41bb-aa65-9edf676e8327",
+    "FriendlyName": "Dual Write Supply Chain Extended Solution",
+    "UniqueName": "msdyn_Dynamics365SupplyChainExtendedAnchor"
+  },
+  {
+    "ApplicationId": "46d46000-039a-4386-8024-177e9a2af26b",
+    "FriendlyName": "Finance and Operations Virtual Entity",
+    "UniqueName": "MicrosoftOperationsVEAnchor"
+  },
+  {
+    "ApplicationId": "48173246-0b51-42fa-8359-c1d587e1aa83",
+    "FriendlyName": "Dynamics 365 HR Integration to URS",
+    "UniqueName": "HCMSchedulingAnchor"
+  },
+  {
+    "ApplicationId": "3501957c-1ca5-4d52-ad35-4ea8dbf98380",
+    "FriendlyName": "Finance + Operation Managed Data Lake",
+    "UniqueName": "msdyn_FnoIntegrationMDLApp_Anchor"
+  },
+  {
+    "ApplicationId": "f50df160-cb1d-415c-a8ec-c0f49fc47c94",
+    "FriendlyName": "Dynamics 365 Inventory Visibility",
+    "UniqueName": "msdyn_InventoryServiceAnchor"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "DynamicsCij_AnchorSolution"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "MicrosoftDynamics_MktPlaceholder2CIJAnchorSolution"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "MicrosoftDynamics_MktCompleteCIJAnchorSolution"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "MicrosoftDynamics_LinkedInLeadGenCIJAnchorSolution"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "MicrosoftDynamics_PortalDataCIJAnchorSolution"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "SMBMarketingDemoData"
+  },
+  {
+    "ApplicationId": "9c20f05c-e8b0-4e3f-a8fd-5a584bcb931f",
+    "FriendlyName": "Dynamics 365 Customer Insights",
+    "UniqueName": "MicrosoftDynamics_StandardDataCIJAnchorSolution"
+  }
+ 
+]

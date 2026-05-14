@@ -18,8 +18,13 @@ jobs:
 
     steps:
 
-      # Checkout repo
-      - uses: actions/checkout@v4
+      # Checkout repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Install jq
+      - name: Install jq
+        run: sudo apt-get install -y jq
 
       # Install PAC CLI
       - name: Install PAC CLI
@@ -27,7 +32,7 @@ jobs:
           dotnet tool install --global Microsoft.PowerApps.CLI.Tool
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      # Verify PAC
+      # Verify PAC CLI
       - name: Verify PAC
         run: pac help
 
@@ -44,21 +49,24 @@ jobs:
         id: resolve-env
         shell: bash
         run: |
+
           ENV_NAME="${{ github.event.inputs.environment_name }}"
           ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
+
+          echo "Searching environment: $ENV_NAME"
 
           pac admin list --json > envs.json
 
           ENV_ID=$(jq -r '
-            (.value // .)[]
-            | select(
-                (
-                  (.DisplayName // .displayName // .name // .properties.displayName // "")
-                  | ascii_downcase
-                )
-                | contains("'"$ENV_NAME_LC"'")
+            (.value // .)[] |
+            select(
+              (
+                (.DisplayName // .displayName // .name // "")
+                | ascii_downcase
               )
-            | (.EnvironmentId // .environmentId // .id)
+              | contains("'"$ENV_NAME_LC"'")
+            ) |
+            (.EnvironmentId // .environmentId // .id)
           ' envs.json | head -n 1)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" == "null" ]; then
@@ -70,7 +78,7 @@ jobs:
 
           echo "environment_id=$ENV_ID" >> $GITHUB_OUTPUT
 
-      # Install Applications from JSON
+      # Install Applications
       - name: Install CE Applications
         shell: bash
         run: |
@@ -79,11 +87,17 @@ jobs:
 
           echo "Installing applications into environment: $ENV_ID"
 
+          if [ ! -f config/ce-prerequisites.json ]; then
+            echo "JSON file not found!"
+            exit 1
+          fi
+
           jq -c '.[]' config/ce-prerequisites.json | while read app
           do
-            FRIENDLY_NAME=$(echo $app | jq -r '.friendlyName')
-            APPLICATION_ID=$(echo $app | jq -r '.applicationId')
-            UNIQUE_NAME=$(echo $app | jq -r '.uniqueName')
+
+            FRIENDLY_NAME=$(echo "$app" | jq -r '.friendlyName')
+            APPLICATION_ID=$(echo "$app" | jq -r '.applicationId')
+            UNIQUE_NAME=$(echo "$app" | jq -r '.uniqueName')
 
             echo "===================================="
             echo "Installing: $FRIENDLY_NAME"
@@ -94,5 +108,11 @@ jobs:
             pac application install \
               --environment "$ENV_ID" \
               --application-id "$APPLICATION_ID"
+
+            if [ $? -eq 0 ]; then
+              echo "SUCCESS: $FRIENDLY_NAME installed"
+            else
+              echo "FAILED: $FRIENDLY_NAME"
+            fi
 
           done

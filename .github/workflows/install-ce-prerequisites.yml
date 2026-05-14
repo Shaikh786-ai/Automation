@@ -198,14 +198,41 @@ jobs:
               continue
             fi
 
-            pac application install \
-              --environment "$ENV_ID" \
-              --application-name "$UNIQUE_NAME"
+            MAX_RETRIES=10
+            RETRY_COUNT=0
+            INSTALL_SUCCESS=false
 
-            if [ $? -eq 0 ]; then
-              echo "SUCCESS: $FRIENDLY_NAME installed"
-            else
-              echo "FAILED: $FRIENDLY_NAME"
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]
+            do
+
+              echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+              pac application install \
+                --environment "$ENV_ID" \
+                --application-name "$UNIQUE_NAME"
+
+              EXIT_CODE=$?
+
+              if [ $EXIT_CODE -eq 0 ]; then
+
+                echo "SUCCESS: $FRIENDLY_NAME installed"
+
+                INSTALL_SUCCESS=true
+                break
+
+              fi
+
+              echo "Environment may not be fully enabled yet."
+              echo "Waiting 60 seconds before retry..."
+
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+
+              sleep 60
+
+            done
+
+            if [ "$INSTALL_SUCCESS" = false ]; then
+              echo "FAILED: $FRIENDLY_NAME after retries"
               FAILURES=$((FAILURES + 1))
             fi
 

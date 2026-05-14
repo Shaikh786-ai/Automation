@@ -21,7 +21,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Debug repository files
+      # Debug repository structure
       - name: Debug Repository Files
         run: |
           echo "Current directory:"
@@ -43,12 +43,12 @@ jobs:
 
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      # Verify PAC installation
+      # Verify PAC CLI
       - name: Verify PAC CLI
         run: |
           pac help
 
-      # Authenticate using GitHub Federated Credentials
+      # Authenticate PAC using GitHub Federated Credentials
       - name: Authenticate PAC
         run: |
           pac auth create \
@@ -73,9 +73,6 @@ jobs:
           echo "Searching environment: $ENV_NAME"
 
           pac admin list --json > envs.json
-
-          echo "Available environments:"
-          cat envs.json
 
           ENV_ID=$(jq -r --arg envNameLc "$ENV_NAME_LC" '
             (
@@ -145,22 +142,23 @@ jobs:
             [
               .[]
               | select(
-                  (.friendlyName == null or .friendlyName == "") or
-                  (.applicationId == null or .applicationId == "") or
-                  (.uniqueName == null or .uniqueName == "")
+                  (.FriendlyName == null or .FriendlyName == "") or
+                  (.ApplicationId == null or .ApplicationId == "") or
+                  (.UniqueName == null or .UniqueName == "")
                 )
             ] | length
           ' "$JSON_FILE")
 
           if [ "$INVALID_COUNT" -gt 0 ]; then
+
             echo "ERROR: Invalid entries found in JSON"
 
             jq '
               .[]
               | select(
-                  (.friendlyName == null or .friendlyName == "") or
-                  (.applicationId == null or .applicationId == "") or
-                  (.uniqueName == null or .uniqueName == "")
+                  (.FriendlyName == null or .FriendlyName == "") or
+                  (.ApplicationId == null or .ApplicationId == "") or
+                  (.UniqueName == null or .UniqueName == "")
                 )
             ' "$JSON_FILE"
 
@@ -169,7 +167,7 @@ jobs:
 
           echo "JSON validation successful"
 
-      # Install applications
+      # Install CE applications
       - name: Install CE Applications
         shell: bash
         run: |
@@ -184,9 +182,9 @@ jobs:
           while IFS= read -r app
           do
 
-            FRIENDLY_NAME=$(echo "$app" | jq -r '.friendlyName')
-            APPLICATION_ID=$(echo "$app" | jq -r '.applicationId')
-            UNIQUE_NAME=$(echo "$app" | jq -r '.uniqueName')
+            FRIENDLY_NAME=$(echo "$app" | jq -r '.FriendlyName')
+            APPLICATION_ID=$(echo "$app" | jq -r '.ApplicationId')
+            UNIQUE_NAME=$(echo "$app" | jq -r '.UniqueName')
 
             echo "===================================="
             echo "Installing: $FRIENDLY_NAME"
@@ -211,6 +209,8 @@ jobs:
               FAILURES=$((FAILURES + 1))
             fi
 
+            echo ""
+
           done < <(jq -c '.[]' "$JSON_FILE")
 
           if [ "$FAILURES" -gt 0 ]; then
@@ -218,4 +218,6 @@ jobs:
             exit 1
           fi
 
+          echo "===================================="
           echo "All applications installed successfully"
+          echo "===================================="

@@ -1,62 +1,4 @@
-name: Install CE Prerequisites
-
-on:
-  workflow_dispatch:
-    inputs:
-      environment_name:
-        description: "Enter Power Platform Environment Name"
-        required: true
-        type: string
-
-permissions:
-  id-token: write
-  contents: read
-
-jobs:
-  install-applications:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Debug Repository Structure
-        run: |
-          echo "Current working directory:"
-          pwd
-          echo "Repository files:"
-          ls -R
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
-
-      - name: Install PAC CLI
-        run: |
-          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
-
-      - name: Verify PAC CLI
-        run: pac help
-
-      - name: Authenticate PAC using GitHub Federated Credentials
-        run: |
-          pac auth create \
-            --applicationId "${{ secrets.CLIENT_ID }}" \
-            --tenant "${{ secrets.PP_TENANT_ID }}" \
-            --githubFederated
-
-      - name: Resolve Environment ID
-        id: resolve-env
-        shell: bash
-        run: |
-          ENV_NAME="${{ github.event.inputs.environment_name }}"
-          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
-
-          echo "Searching environment: $ENV_NAME"
-
-          pac admin list --json > envs.json
+name: Install CE Prerequisitesname: Install CE Pr list --json > envs.json
 
           echo "===== Raw envs.json ====="
           cat envs.json
@@ -89,7 +31,7 @@ jobs:
           ' envs.json)
 
           if [ -z "$ENV_ID" ] || [ "$ENV_ID" = "null" ]; then
-            echo "Environment not found!"
+            echo "ERROR: Environment not found for name: $ENV_NAME"
             exit 1
           fi
 
@@ -99,28 +41,64 @@ jobs:
       - name: Validate JSON File
         shell: bash
         run: |
-          JSON_FILE="$GITHUB_WORKSPACE/config/ce-prerequisites.json"
+          JSON_FILE="$GITHUB_WORKSPACE/ce-prerequisites.json"
 
           echo "Checking JSON file at: $JSON_FILE"
 
           if [ ! -f "$JSON_FILE" ]; then
-            echo "ERROR: config/ce-prerequisites.json not found!"
+            echo "ERROR: ce-prerequisites.json not found in repository root!"
             echo "Available files:"
             ls -R
             exit 1
           fi
 
+          # Validate JSON syntax
           jq empty "$JSON_FILE"
-          echo "JSON file is valid."
+          echo "JSON syntax is valid."
+
+          # Validate root is an array
+          if ! jq -e 'type == "array"' "$JSON_FILE" > /dev/null; then
+            echo "ERROR: JSON root must be an array."
+            exit 1
+          fi
+
+          # Validate required fields in every entry
+          INVALID_COUNT=$(jq '
+            [
+              .[]
+              | select(
+                  (.friendlyName == null or .friendlyName == "") or
+                  (.applicationId == null or .applicationId == "") or
+                  (.uniqueName == null or .uniqueName == "")
+                )
+            ] | length
+          ' "$JSON_FILE")
+
+          if [ "$INVALID_COUNT" -gt 0 ]; then
+            echo "ERROR: One or more application entries are missing friendlyName, applicationId, or uniqueName."
+            echo "Invalid entries:"
+            jq '
+              .[]
+              | select(
+                  (.friendlyName == null or .friendlyName == "") or
+                  (.applicationId == null or .applicationId == "") or
+                  (.uniqueName == null or .uniqueName == "")
+                )
+            ' "$JSON_FILE"
+            exit 1
+          fi
+
+          echo "JSON structure is valid."
 
       - name: Install CE Applications
         shell: bash
         run: |
           ENV_ID="${{ steps.resolve-env.outputs.environment_id }}"
-          JSON_FILE="$GITHUB_WORKSPACE/config/ce-prerequisites.json"
+          JSON_FILE="$GITHUB_WORKSPACE/ce-prerequisites.json"
           FAILURES=0
 
           echo "Installing applications into environment: $ENV_ID"
+          echo "Reading JSON from: $JSON_FILE"
 
           while IFS= read -r app; do
             FRIENDLY_NAME=$(echo "$app" | jq -r '.friendlyName')
@@ -151,9 +129,78 @@ jobs:
             echo ""
           done < <(jq -c '.[]' "$JSON_FILE")
 
+          echo "Total failures: $FAILURES"
+
           if [ "$FAILURES" -gt 0 ]; then
             echo "One or more application installations failed."
             exit 1
           fi
 
           echo "All applications processed successfully."
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: "Enter Power Platform Environment Name"
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  install-applications:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Debug Repository Structure
+        shell: bash
+        run: |
+          echo "Current working directory:"
+          pwd
+          echo "Repository files:"
+          ls -R
+
+      - name: Install jq
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Install PAC CLI
+        shell: bash
+        run: |
+          dotnet tool install --global Microsoft.PowerApps.CLI.Tool
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Verify PAC CLI
+        shell: bash
+        run: |
+          pac help
+
+      - name: Authenticate PAC using GitHub Federated Credentials
+        shell: bash
+        run: |
+          pac auth create \
+            --applicationId "${{ secrets.CLIENT_ID }}" \
+            --tenant "${{ secrets.PP_TENANT_ID }}" \
+            --githubFederated
+
+      - name: Verify PAC Auth
+        shell: bash
+        run: |
+          pac auth list
+
+      - name: Resolve Environment ID
+        id: resolve-env
+        shell: bash
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment_name }}"
+          ENV_NAME_LC=$(echo "$ENV_NAME" | tr '[:upper:]' '[:lower:]')
+
+          echo "Searching environment: $ENV_NAME"

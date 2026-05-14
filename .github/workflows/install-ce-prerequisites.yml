@@ -192,15 +192,15 @@ jobs:
             echo "Unique Name: $UNIQUE_NAME"
             echo "===================================="
 
-            if [ -z "$APPLICATION_ID" ] || [ "$APPLICATION_ID" = "null" ]; then
-              echo "ERROR: Application ID missing for $FRIENDLY_NAME"
+            if [ -z "$UNIQUE_NAME" ] || [ "$UNIQUE_NAME" = "null" ]; then
+              echo "ERROR: Unique Name missing for $FRIENDLY_NAME"
               FAILURES=$((FAILURES + 1))
               continue
             fi
 
             pac application install \
               --environment "$ENV_ID" \
-              --application-id "$APPLICATION_ID"
+              --application-name "$UNIQUE_NAME"
 
             if [ $? -eq 0 ]; then
               echo "SUCCESS: $FRIENDLY_NAME installed"

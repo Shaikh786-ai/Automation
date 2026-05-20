@@ -92,7 +92,7 @@ jobs:
 
     steps:
 #Checkout Repository - Downloads the repository code into the workflow runner.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # =========================
       # Install Power Platform CLI - Installs Microsoft Power Platform CLI tools required for environment operations.
